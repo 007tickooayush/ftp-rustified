@@ -1,4 +1,4 @@
-use tokio::io::AsyncReadExt;
+use crate::client_handler::client_handler::handle_client;
 
 pub struct Server {
     addr: String,
@@ -17,22 +17,15 @@ impl Server {
         let server = tokio::net::TcpListener::bind(&self.addr).await.unwrap();
         println!("Server is running on {}", self.addr);
 
+        let size = self.buf_size;
+
         loop {
-            let (mut tcp_stream, _) = server.accept().await.unwrap();
-            let size = self.buf_size;
+            let (socket, _) = server.accept().await.unwrap();
 
             tokio::spawn(async move {
-                let mut buffer =vec![0;size as usize];
-
-                match tcp_stream.read(&mut buffer).await {
-                    Ok(_) => {
-                        println!("-----------------------------------------------Incoming request------------------------------------\n{}", String::from_utf8_lossy(&buffer[..]));
-                    },
-                    Err(_) => {
-                        eprintln!("Failed to read from connection");
-                    }
-                }
+                handle_client(socket).await.unwrap();
             });
         }
+
     }
 }
