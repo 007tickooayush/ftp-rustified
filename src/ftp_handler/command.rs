@@ -2,7 +2,7 @@ use std::env::current_dir;
 use std::net::IpAddr;
 use std::path::Path;
 use tokio::fs::{read_dir, File};
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub async fn process_command(command_raw_str: &str) -> String {
     let parts: Vec<&str> = command_raw_str.trim().split_whitespace().collect();
@@ -37,7 +37,7 @@ pub async fn process_command(command_raw_str: &str) -> String {
                 }
             }
             format!("150 Here comes the directory listing.\r\n{}\r\n226 Directory send OK.\r\n", response)
-        },
+        }
         "RETR" => {
             if parts.len() < 2 {
                 return String::from("501 No file name provided.\r\n");
@@ -54,28 +54,37 @@ pub async fn process_command(command_raw_str: &str) -> String {
             } else {
                 String::from("550 Requested action not taken. File unavailable.\r\n")
             }
-        },
+        }
         "PASV" => {
-        //     Establishing a passive connection, for data channel
+            //     Establishing a passive connection, for data channel
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
             let local_addr = listener.local_addr().unwrap();
             let port = local_addr.port();
 
             // Convert the address to the format required by the FTP protocol
-            let (octet1,octet2,octet3,octet4) = match local_addr.ip() {
+            let (octet1, octet2, octet3, octet4) = match local_addr.ip() {
                 IpAddr::V4(ipv4) => {
                     let octets = ipv4.octets();
                     (octets[0], octets[1], octets[2], octets[3])
-                },
+                }
                 IpAddr::V6(_) => return String::from("552 Network Protocol not supported.\r\n")
-
             };
             let p1 = port / 256;
             let p2 = port % 256;
 
+            // Spawn a task to handle the incoming data connection
+            // todo!("Provide an actual implementation for handling the scenarios)
+            tokio::task::spawn(async move {
+                if let Ok((mut socket, _)) = listener.accept().await {
+                    // Handle the data connection here
+                    // For example, you can read/write data to the socket
+                    socket.write_all(b"Hello from the server!\r\n").await.unwrap();
+                }
+            });
+
             // Respond with the address and port
             format!("227 Entering Passive Mode ({},{},{},{},{},{}).\r\n", octet1, octet2, octet3, octet4, p1, p2)
-        },
+        }
         _ => String::from("502 Command not implemented \r\n")
     }
 }
