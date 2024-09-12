@@ -1,6 +1,7 @@
 mod tcp_handler;
 mod ftp_handler;
 mod client_handler;
+mod file_system_handler;
 
 use dotenv::dotenv;
 use crate::tcp_handler::server::Server;

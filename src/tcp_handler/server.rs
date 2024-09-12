@@ -23,7 +23,7 @@ impl Server {
             let (socket, _) = server.accept().await.unwrap();
 
             tokio::spawn(async move {
-                handle_client(socket).await.unwrap();
+                handle_client(socket,size).await.unwrap();
             });
         }
 

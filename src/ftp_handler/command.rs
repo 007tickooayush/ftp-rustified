@@ -1,8 +1,8 @@
-use std::env::current_dir;
 use std::net::IpAddr;
 use std::path::Path;
-use tokio::fs::{read_dir, File};
+use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use crate::file_system_handler::file_system::{get_root_dir, list_dir};
 
 pub async fn process_command(command_raw_str: &str) -> String {
     let parts: Vec<&str> = command_raw_str.trim().split_whitespace().collect();
@@ -25,18 +25,26 @@ pub async fn process_command(command_raw_str: &str) -> String {
             }
         }
         "PWD" => {
-            let current_dir = current_dir().unwrap();
+            let current_dir = get_root_dir();
             format!("257 \"{}\"\r\n", current_dir.to_string_lossy())
         }
         "LIST" => {
-            let mut response = String::new();
+            // USE the list_dir function from file_system
 
-            if let Ok(mut entries) = read_dir("./PUBLIC").await {
-                while let Ok(Some(entry)) = entries.next_entry().await {
-                    response.push_str(&format!("{}\r\n", entry.path().to_string_lossy()));
-                }
-            }
-            format!("150 Here comes the directory listing.\r\n{}\r\n226 Directory send OK.\r\n", response)
+            // let mut response = String::new();
+            // let current_dir = get_root_dir();
+            // if let Ok(mut entries) = read_dir(current_dir).await {
+            //     while let Ok(Some(entry)) = entries.next_entry().await {
+            //         response.push_str(&format!("{}\r\n", entry.path().to_string_lossy()));
+            //     }
+            // }
+            // let resp = format!("150 Here comes the directory listing.\r\n{}\r\n226 Directory send OK.\r\n", response);
+            // println!("RESP: {}", &resp);
+            // resp
+
+            let response = list_dir("./PUBLIC").await.unwrap();
+            println!("RESPONSE:\n{}",&response);
+            response
         }
         "RETR" => {
             if parts.len() < 2 {
@@ -73,12 +81,13 @@ pub async fn process_command(command_raw_str: &str) -> String {
             let p2 = port % 256;
 
             // Spawn a task to handle the incoming data connection
-            // todo!("Provide an actual implementation for handling the scenarios)
+            // todo!("Provide actual implementation for handling ALL the scenarios, currently only handling write from server")
             tokio::task::spawn(async move {
                 if let Ok((mut socket, _)) = listener.accept().await {
                     // Handle the data connection here
                     // For example, you can read/write data to the socket
-                    socket.write_all(b"Hello from the server!\r\n").await.unwrap();
+                    let response = list_dir("./PUBLIC").await.unwrap();
+                    socket.write_all(response.as_bytes()).await.unwrap();
                 }
             });
 
@@ -88,3 +97,4 @@ pub async fn process_command(command_raw_str: &str) -> String {
         _ => String::from("502 Command not implemented \r\n")
     }
 }
+
