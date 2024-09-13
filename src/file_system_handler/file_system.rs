@@ -70,3 +70,7 @@ pub async fn list_dir(path: &str) -> Result<String, Box<dyn std::error::Error>> 
     response.push_str("226 Transfer complete.\r\n");
     Ok(response)
 }
+
+pub async fn change_directory() {
+
+}

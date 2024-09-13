@@ -28,6 +28,17 @@ pub async fn process_command(command_raw_str: &str) -> String {
             let current_dir = get_root_dir();
             format!("257 \"{}\"\r\n", current_dir.to_string_lossy())
         }
+        "CWD" => {
+            // todo!("Implement the change directory command")
+            let new_dir = Path::new(parts[1]);
+            let current_dir = get_root_dir();
+            let new_path = current_dir.join(new_dir);
+            if new_path.exists() {
+                format!("250 Directory changed to \"{}\"\r\n", new_path.to_string_lossy())
+            } else {
+                String::from("550 Requested action not taken. File unavailable.\r\n")
+            }
+        }
         "LIST" => {
             // USE the list_dir function from file_system
 

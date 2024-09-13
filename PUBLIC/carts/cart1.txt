@@ -1,0 +1,1 @@
+Cart of the shopping list selected by the user.
