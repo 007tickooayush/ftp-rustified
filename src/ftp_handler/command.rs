@@ -1,10 +1,11 @@
 use std::net::IpAddr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use crate::file_system_handler::file_system::{get_root_dir, list_dir};
+use crate::file_system_handler::file_system::{get_root_dir, handle_cwd_command, list_dir};
+use crate::tcp_handler::server::Server;
 
-pub async fn process_command(command_raw_str: &str) -> String {
+pub async fn process_command(server: &mut Server, command_raw_str: &str) -> String {
     let parts: Vec<&str> = command_raw_str.trim().split_whitespace().collect();
 
     match parts[0].to_uppercase().as_str() {
@@ -25,19 +26,28 @@ pub async fn process_command(command_raw_str: &str) -> String {
             }
         }
         "PWD" => {
-            let current_dir = get_root_dir();
+            println!("PWD command parts: {:?}", parts);
+            let current_dir = get_root_dir(&server);
             format!("257 \"{}\"\r\n", current_dir.to_string_lossy())
+
+            // let current_dir = get_root_dir(&server);// server.get_curr_dir();
+            // let dir_contents = list_dir(current_dir.to_str().unwrap()).await.unwrap();
+            // format!("257 \"{}\"\r\n{}", current_dir.to_string_lossy(), dir_contents)
         }
         "CWD" => {
             // todo!("Implement the change directory command")
-            let new_dir = Path::new(parts[1]);
-            let current_dir = get_root_dir();
-            let new_path = current_dir.join(new_dir);
-            if new_path.exists() {
-                format!("250 Directory changed to \"{}\"\r\n", new_path.to_string_lossy())
-            } else {
-                String::from("550 Requested action not taken. File unavailable.\r\n")
-            }
+            // let new_dir = Path::new(parts[1]);
+            // let current_dir = get_root_dir();
+            // let new_path = current_dir.join(new_dir);
+            // if new_path.exists() {
+            //     format!("250 Directory changed to \"{}\"\r\n", new_path.to_string_lossy())
+            // } else {
+            //     String::from("550 Requested action not taken. File unavailable.\r\n")
+            // }
+            let new_dir = PathBuf::from(parts[1]);
+
+            let response = handle_cwd_command(server, &new_dir.to_string_lossy()).await;
+            response
         }
         "LIST" => {
             // USE the list_dir function from file_system
@@ -53,8 +63,9 @@ pub async fn process_command(command_raw_str: &str) -> String {
             // println!("RESP: {}", &resp);
             // resp
 
-            let response = list_dir("./PUBLIC").await.unwrap();
-            println!("RESPONSE:\n{}",&response);
+            // todo!("PROVIDE UPDATED FORMAT THAT UPDATED THE LISTING")
+            let response = list_dir(server.get_curr_dir().to_str().unwrap()).await.unwrap();
+            println!("RESPONSE:\n{}", &response);
             response
         }
         "RETR" => {

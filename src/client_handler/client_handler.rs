@@ -1,8 +1,9 @@
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use crate::ftp_handler::command::process_command;
+use crate::tcp_handler::server::Server;
 
-pub async fn handle_client(mut socket: TcpStream, buf_size: u128) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn handle_client(server: &mut Server, mut socket: TcpStream, buf_size: u128) -> Result<(), Box<dyn std::error::Error>> {
 
     let mut buffer = vec![0; buf_size as usize];
     socket.write_all(b"220 Welcome to Rust FTP Server\r\n").await?;
@@ -15,7 +16,7 @@ pub async fn handle_client(mut socket: TcpStream, buf_size: u128) -> Result<(), 
 
         let command = String::from_utf8_lossy(&buffer[..n]);
         println!("=====|INCOMING COMMAND:\n{}\n",&command);
-        let response = process_command(&command).await;
+        let response = process_command(server,&command).await;
         socket.write_all(response.as_bytes()).await?;
     }
 }

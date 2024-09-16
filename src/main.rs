@@ -15,6 +15,6 @@ async fn main() {
     let host = format!("{}:{}", addr, port);
 
     let buf_size = std::env::var("BUF_SIZE").unwrap_or("1024".to_string());
-    Server::new(host,buf_size.parse().unwrap()).start().await;
+    Server::new(host,buf_size.parse().unwrap()).run().await;
 
 }
