@@ -102,13 +102,15 @@ pub async fn process_command(server: &mut Server, command_raw_str: &str) -> Stri
             let p1 = port / 256;
             let p2 = port % 256;
 
+            let curr_dir = server.get_curr_dir().clone();
+
             // Spawn a task to handle the incoming data connection
             // todo!("Provide actual implementation for handling ALL the scenarios, currently only handling write from server")
             tokio::task::spawn(async move {
                 if let Ok((mut socket, _)) = listener.accept().await {
                     // Handle the data connection here
                     // For example, you can read/write data to the socket
-                    let response = list_dir("./PUBLIC").await.unwrap();
+                    let response = list_dir(curr_dir.to_str().unwrap()).await.unwrap();
                     socket.write_all(response.as_bytes()).await.unwrap();
                 }
             });
