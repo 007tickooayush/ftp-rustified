@@ -46,15 +46,23 @@ impl Server {
     }
 
     pub async fn change_directory(&mut self, path: &str) -> Result<String, std::io::Error> {
-        let new_path = if path.starts_with("/") {
-            // println!("IF Root dir: {:?}", self.root_dir);
-            // println!("IF Path: {:?}", Path::new(path).file_name().unwrap());
-            self.root_dir.join(Path::new(path).file_name().unwrap())
+        // let new_path = if path.starts_with("/") {
+        //     println!("IF Root dir: {:?}", self.root_dir);
+        //     println!("IF Path: {:?}", Path::new(path).file_name().unwrap());
+        //     self.root_dir.join(Path::new(path).file_name().unwrap())
+        // } else {
+        //     println!("EL Root dir: {:?}", self.root_dir);
+        //     self.curr_dir.join(path)
+        // };
+        let new_path = if !path.is_empty() {
+            if Path::new(path).is_dir() {
+                self.curr_dir.join(path)
+            } else {
+                return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid path: Trying to change to a file"));
+            }
         } else {
-            println!("EL Root dir: {:?}", self.root_dir);
-            self.curr_dir.join(path)
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid path: Invalid Path"));
         };
-
 
         if let Ok(canonical_path) = tokio::fs::canonicalize(&new_path).await {
             println!("Canonical path: {:?}", canonical_path);
