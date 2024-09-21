@@ -118,6 +118,10 @@ pub async fn process_command(server: &mut Server, command_raw_str: &str) -> Stri
             // Respond with the address and port
             format!("227 Entering Passive Mode ({},{},{},{},{},{}).\r\n", octet1, octet2, octet3, octet4, p1, p2)
         }
+        "STOR" => {
+            todo!("Implement the STOR command");
+        }
+        "QUIT" => String::from("221 Bye beyotch.\r\n"),
         _ => String::from("502 Command not implemented \r\n")
     }
 }
