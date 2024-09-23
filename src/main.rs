@@ -1,4 +1,5 @@
 mod client_command;
+mod server;
 
 use dotenv::dotenv;
 
