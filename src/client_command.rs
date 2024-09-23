@@ -52,3 +52,13 @@ pub enum DataTransferType {
     IMAGE,
     UNKNOWN,
 }
+
+impl From<u8> for DataTransferType {
+    fn from(val: u8) -> Self {
+        match val {
+            b'A' => DataTransferType::ASCII,
+            b'I' => DataTransferType::IMAGE,
+            _ => DataTransferType::UNKNOWN,
+        }
+    }
+}
