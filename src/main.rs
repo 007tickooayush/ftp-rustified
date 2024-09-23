@@ -1,5 +1,7 @@
 mod client_command;
 mod server;
+mod ftp_config;
+mod ftp_user;
 
 use dotenv::dotenv;
 
