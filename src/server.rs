@@ -1,5 +1,6 @@
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
+use std::thread::sleep;
 use dotenv::dotenv;
 use tokio::net::TcpListener;
 use crate::ftp_config::FtpConfig;
@@ -28,9 +29,23 @@ impl Server {
         println!("Client expected at {}", socket_addr);
 
         let listener = TcpListener::bind(&socket_addr).await.unwrap();
-        loop {
 
+        loop {
+            let (socket, addr) = listener.accept().await.unwrap();
+            println!("New client connected");
         }
 
     }
+}
+
+#[tokio::test]
+async fn test_server() {
+    dotenv().ok();
+    let config = FtpConfig::new("ftp_server.json").await.unwrap();
+    let server = Server::new(PathBuf::from("test"), config);
+    let server_handle = tokio::spawn( async move {
+        server.run().await;
+    });
+    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    server_handle.abort();
 }
