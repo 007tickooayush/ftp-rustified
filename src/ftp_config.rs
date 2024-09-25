@@ -46,3 +46,52 @@ impl FtpConfig {
         }
     }
 }
+
+
+#[test]
+fn test_ftp_config() {
+    let config = FtpConfig {
+        port: 2001,
+        addr: "0.0.0.0".to_string(),
+        admin: Some(FtpUser {
+            username: "admin".to_string(),
+            password: "admin".to_string()
+        }),
+        users: vec![
+            FtpUser {
+                username: "user1".to_string(),
+                password: "user1".to_string()
+            },
+            FtpUser {
+                username: "user2".to_string(),
+                password: "user2".to_string()
+            }
+        ]
+    };
+    assert_eq!(config.port, 2001);
+    assert_eq!(config.addr, "0.0.0.0".to_string());
+    if let Some(admin) = config.admin {
+        assert_eq!(admin.username, "admin".to_string());
+        assert_eq!(admin.password, "admin".to_string());
+    } else {
+        panic!("Admin user not found");
+    }
+    assert_eq!(config.users[0].username, "user1".to_string());
+}
+
+#[tokio::test]
+async fn test_read_file() {
+    let config = FtpConfig::new("ftp_config_test.json").await.expect("File not Found");
+    println!("Config: {:?}", config);
+    assert_eq!(config.port, 2001);
+    assert_eq!(config.addr, "0.0.0.0".to_string());
+    if let Some(admin) = &config.admin {
+        assert_eq!(admin.username, "admin".to_string());
+        assert_eq!(admin.password, "admin".to_string());
+    } else {
+        panic!("Admin user not found");
+    }
+    assert_eq!(config.users[0].username, "user".to_string());
+    assert_eq!(config.users[0].password, "user".to_string());
+
+}

@@ -5,6 +5,7 @@ mod ftp_user;
 mod utils;
 
 use dotenv::dotenv;
+use crate::ftp_config::FtpConfig;
 
 #[tokio::main]
 async fn main() {
@@ -14,6 +15,6 @@ async fn main() {
     let port = std::env::var("PORT").unwrap_or("2001".to_string());
     let host = format!("{}:{}", addr, port);
 
-
+    let config = FtpConfig::new("ftp_server.json").await.unwrap();
 
 }
