@@ -1,8 +1,10 @@
+use std::fmt::format;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::thread::sleep;
 use dotenv::dotenv;
 use tokio::net::TcpListener;
+use crate::client_handler::Client;
 use crate::ftp_config::FtpConfig;
 
 pub struct Server {
@@ -31,8 +33,15 @@ impl Server {
         let listener = TcpListener::bind(&socket_addr).await.unwrap();
 
         loop {
-            let (socket, addr) = listener.accept().await.unwrap();
-            println!("New client connected");
+            for (stream, addr) in listener.accept().await {
+                let address = format!("[address: {}]",addr);
+                println!("====New client connected: {}", address);
+
+                tokio::spawn(async move {
+                    let mut client = Client::new(stream, self.root_dir_server.clone(), self.ftp_config.clone());
+                    client.handle_client().await;
+                });
+            }
         }
 
     }
