@@ -1,13 +1,15 @@
+use crate::ftp_responce_code::ResponseCode;
+
 pub struct Response {
-    pub code: u32,
+    pub code: ResponseCode,
     pub message: String
 }
 
 impl Response {
-    pub fn new(code: u32, message: String) -> Self {
+    pub fn new(code: ResponseCode, message: &str) -> Self {
         Response {
             code,
-            message
+            message: message.to_string()
         }
     }
 }
