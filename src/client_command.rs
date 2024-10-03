@@ -1,7 +1,11 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::result;
+use std::str::from_utf8;
+use serde_json::from_str;
+use crate::error::FtpError;
+use crate::utils::bytes_to_uppercase;
 
-pub type Result<T> = result::Result<T, Error>;
+pub type Result<T> = result::Result<T, FtpError>;
 
 pub enum Command {
     AUTH,
@@ -27,9 +31,67 @@ pub enum Command {
 impl Command {
     pub fn new(input: Vec<u8>) -> Result<Self> {
         let mut iter = input.split(|&byte| byte == b' ');
-        let command = iter.next().ok_or_else(|| "Empty command")?.to_vec();
+        let mut command = iter.next().ok_or_else(|| FtpError::Msg("Empty command".to_string()))?.to_vec();
+        bytes_to_uppercase(&mut command);
 
-        unimplemented!("Implement Error Struct");
+        let data = iter.next().ok_or_else(|| FtpError::Msg("No Command Parameter".to_string()));
+
+        let command = match command.as_slice() {
+            b"AUTH" => Command::AUTH,
+            b"CWD" => Command::CWD(data.and_then(|bytes|  Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
+            b"CDUP" => Command::CDUP,
+            b"LIST" => Command::LIST(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf())).ok()),
+            b"PASV" => Command::PASV,
+            b"MKD" => Command::MKD(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
+            b"PORT" => {
+                let addr = data?.split(|&byte| byte == b',')
+                    .filter_map(
+                        |bytes| {
+                            from_utf8(bytes).ok().and_then(|string| from_str(string).ok())
+                        }
+                    ).collect::<Vec<u8>>();
+                if addr.len() != 6 {
+                    return Err("Invalid address/port".into())
+                }
+
+                // Shifting the high byte by a8 bits left and performing bitwise OR with the low byte
+                // and then Combining the two bytes to 16-bit port number
+                let port = (addr[4] as u16) << 8 | (addr[5] as u16);
+
+                if port <= 1024 {
+                    return Err("Port can't be less than 10025".into());
+                }
+                Command::PORT(port)
+            },
+            b"PWD" => Command::PWD,
+            b"QUIT" => Command::QUIT,
+            b"RETR" => Command::RETR(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
+            b"RMD" => Command::RMD(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
+            b"STOR" => Command::RETR(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
+            b"SYST" => Command::SYST,
+            b"TYPE" => {
+                let err: Result<Command> = Err("Command not implemented".into());
+
+                let data = data?;
+
+                if data.is_empty() {
+                    return err;
+                }
+
+                match DataTransferType::from(data[0]) {
+                    DataTransferType::UNKNOWN => return err,
+                    typ => {
+                        Command::TYPE(typ)
+                    }
+                }
+            },
+            b"USER" => Command::USER(data.and_then(|bytes| String::from_utf8(bytes.to_vec()).map_err(Into::into))?),
+            b"PASS" => Command::PASS(data.and_then(|bytes| String::from_utf8(bytes.to_vec()).map_err(Into::into))?),
+            b"NOOP" => Command::NOOP,
+            cmd => Command::UNKNOWN(from_utf8(cmd).unwrap_or("").to_owned())
+        };
+
+        Ok(command)
     }
 }
 impl AsRef<str> for Command {
