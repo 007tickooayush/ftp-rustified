@@ -1,5 +1,7 @@
 use std::path::PathBuf;
-use std::str::FromStr;
+use std::result;
+
+pub type Result<T> = result::Result<T, Error>;
 
 pub enum Command {
     AUTH,
@@ -22,6 +24,14 @@ pub enum Command {
     USER(String),
 }
 
+impl Command {
+    pub fn new(input: Vec<u8>) -> Result<Self> {
+        let mut iter = input.split(|&byte| byte == b' ');
+        let command = iter.next().ok_or_else(|| "Empty command")?.to_vec();
+
+        unimplemented!("Implement Error Struct");
+    }
+}
 impl AsRef<str> for Command {
     fn as_ref(&self) -> &str {
         match *self {
