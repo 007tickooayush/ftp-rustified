@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio_io::_tokio_codec::Framed;
@@ -23,10 +22,18 @@ impl ClientHandler {
         }
     }
 
-    pub async fn handle_client(mut self) {
+    pub async fn handle_client(&mut self) {
         // Using the tokio Framed implementation to handle the client
-        let (mut reader, mut writer) = Framed::new(self.stream, FtpCodec).get_mut().split();
-        let writer = writer.write_all(Response::new(ResponseCode::ServiceReadyForNewUser,"Welcome to the FTP Server")).await.unwrap();
-        unimplemented!("Need codec implementation");
+        let (mut reader, mut writer) = self.stream.split();
+        let resp: Vec<u8> = Response::new(ResponseCode::ServiceReadyForNewUser, "Welcome to the FTP Server").into();
+        writer.write_all(&resp).await.unwrap();
+
+
+        unimplemented!("");
     }
+
+    async fn handle_command(&self, cmd: Vec<u8>) -> Vec<u8> {
+        unimplemented!("");
+    }
+
 }

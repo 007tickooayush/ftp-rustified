@@ -50,13 +50,13 @@ impl error::Error for FtpError {
     // }
 
     fn cause(&self) -> Option<&dyn Error> {
-        let cause: &dyn error::Error = match *self {
-            FromUtf8(ref error) => error,
-            Io(ref error) => error,
-            Msg(ref error) => error,
-            Utf8(_) => return None,
-        };
-
+        let cause: &dyn Error =
+            match *self {
+                FromUtf8(ref error) => error,
+                Io(ref error) => error,
+                Utf8(ref error) => error,
+                Msg(_) => return None,
+            };
         Some(cause)
     }
 }
