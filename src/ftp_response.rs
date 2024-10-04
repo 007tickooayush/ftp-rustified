@@ -1,5 +1,6 @@
 use crate::ftp_responce_code::ResponseCode;
 
+
 pub struct Response {
     pub code: ResponseCode,
     pub message: String

@@ -1,10 +1,12 @@
-use std::fmt::{Display, Formatter};
+use std::error;
+use std::error::Error;
+use std::fmt::{self, Display, Formatter};
+use std::io;
+use std::result;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
-use std::{error, io, result};
-use std::error::Error;
-use crate::error::FtpError::Io;
 
+use self::FtpError::*;
 pub type Result<T> = result::Result<T, FtpError>;
 
 #[derive(Debug)]
@@ -16,10 +18,10 @@ pub enum FtpError {
 }
 
 impl FtpError {
-    pub fn to_io_error(self) -> Self {
+    pub fn to_io_error(self) -> io::Error {
         match self {
-            FtpError::Io(e) => e,
-            FtpError::FromUtf8(_) | FtpError::Msg(_) | FtpError::Utf8(_) => tokio::io::ErrorKind::Other.into()
+            Io(e) => e.into(),
+            FromUtf8(_) | Msg(_) | Utf8(_) => tokio::io::ErrorKind::Other.into()
         }
     }
 }
@@ -28,10 +30,10 @@ impl FtpError {
 impl Display for  FtpError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match *self {
-            FtpError::FromUtf8(ref error) => error.fmt(f),
-            FtpError::Io(ref error) => error.fmt(f),
-            FtpError::Utf8(ref error) => error.fmt(f),
-            FtpError::Msg(ref msg) => write!(f, "{}", msg),
+            FromUtf8(ref error) => error.fmt(f),
+            Io(ref error) => error.fmt(f),
+            Utf8(ref error) => error.fmt(f),
+            Msg(ref msg) => write!(f, "{}", msg),
         }
     }
 }
@@ -49,10 +51,10 @@ impl error::Error for FtpError {
 
     fn cause(&self) -> Option<&dyn Error> {
         let cause: &dyn error::Error = match *self {
-            FtpError::FromUtf8(ref error) => error,
-            FtpError::Io(ref error) => error,
-            FtpError::Msg(ref error) => error,
-            FtpError::Utf8(_) => return None,
+            FromUtf8(ref error) => error,
+            Io(ref error) => error,
+            Msg(ref error) => error,
+            Utf8(_) => return None,
         };
 
         Some(cause)
@@ -60,8 +62,8 @@ impl error::Error for FtpError {
 }
 
 // From trait implementation for each FtpError error type
-impl From<io::Error> for FtpError {
-    fn from(value: io::Error) -> Self {
+impl From<tokio::io::Error> for FtpError {
+    fn from(value: tokio::io::Error) -> Self {
         Io(value)
     }
 }
