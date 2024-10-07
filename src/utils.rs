@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use bytes::BytesMut;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
@@ -19,5 +19,11 @@ pub fn bytes_to_uppercase(data: &mut [u8]) {
         if *byte >= b'a' as u8 && *byte <= b'z' as u8 {
             *byte -= 32;
         }
+    }
+}
+
+pub fn prefix_slash(path: &mut PathBuf) {
+    if !path.is_absolute() {
+        *path = Path::new("/").join(&path);
     }
 }

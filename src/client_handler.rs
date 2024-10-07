@@ -26,8 +26,8 @@ impl ClientHandler {
         // Using the tokio Framed implementation to handle the client
         let (mut reader, mut writer) = tokio::io::split(self.stream);
 
-        let resp: Vec<u8> = Response::new(ResponseCode::ServiceReadyForNewUser, "Welcome to the FTP Server").into();
-        writer.write(&resp).await.unwrap();
+        let resp = &Response::new(ResponseCode::ServiceReadyForNewUser, "Welcome to the FTP Server").to_bytes();
+        writer.write(resp).await.unwrap();
 
         let mut client = Client::new(writer, self.server_root_dir.clone(), self.ftp_config.clone());
 

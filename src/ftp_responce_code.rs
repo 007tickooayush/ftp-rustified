@@ -43,3 +43,11 @@ pub enum ResponseCode {
     ExceededStorageAllocation = 552,
     FileNameNotAllowed = 553,
 }
+
+impl ResponseCode {
+    pub fn to_bytes(self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&(self as u32).to_be_bytes());
+        bytes
+    }
+}

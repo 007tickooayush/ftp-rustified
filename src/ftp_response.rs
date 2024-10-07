@@ -13,18 +13,11 @@ impl Response {
             message: message.to_string()
         }
     }
-}
 
-impl Into<Vec<u8>> for Response {
-    fn into(self) -> Vec<u8> {
-        let mut buffer: Vec<u8> = vec![];
-
-        if self.message.is_empty() {
-            write!(buffer, "{}\r\n",self.code as u32).unwrap();
-        } else {
-            write!(buffer, "{} {}\r\n", self.code as u32, self.message).unwrap();
-        }
-
-        buffer
+    pub fn to_bytes(self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&self.code.to_bytes());
+        bytes.extend_from_slice(self.message.as_bytes());
+        bytes
     }
 }
