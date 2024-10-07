@@ -1,8 +1,12 @@
 use std::path::PathBuf;
+use std::result;
 use tokio::io::{ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 use crate::client_command::{Command, DataTransferType};
+use crate::error::FtpError;
 use crate::ftp_config::FtpConfig;
+
+pub type Result<T> = result::Result<T, FtpError>;
 
 pub struct Client {
     cwd: PathBuf,
@@ -39,7 +43,7 @@ impl Client {
         self.name.is_some() && !self.waiting_password
     }
 
-    async fn handle_command(&self, cmd: Command) -> Result<Self> {
+    pub async fn handle_command(&self, cmd: Command) -> Result<Self> {
         unimplemented!("");
     }
 

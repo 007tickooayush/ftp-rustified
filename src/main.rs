@@ -8,6 +8,7 @@ mod ftp_response;
 mod ftp_responce_code;
 mod codec;
 mod error;
+mod client;
 
 use dotenv::dotenv;
 use crate::ftp_config::FtpConfig;

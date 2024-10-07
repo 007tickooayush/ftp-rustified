@@ -1,8 +1,8 @@
 use std::path::PathBuf;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
-use tokio_io::_tokio_codec::Framed;
-use crate::codec::FtpCodec;
+use crate::client::Client;
+use crate::client_command::Command;
 use crate::ftp_config::FtpConfig;
 use crate::ftp_responce_code::ResponseCode;
 use crate::ftp_response::Response;
@@ -22,18 +22,24 @@ impl ClientHandler {
         }
     }
 
-    pub async fn handle_client(&mut self) {
+    pub async fn handle_client(mut self) {
         // Using the tokio Framed implementation to handle the client
-        let (mut reader, mut writer) = self.stream.split();
+        let (mut reader, mut writer) = tokio::io::split(self.stream);
+
         let resp: Vec<u8> = Response::new(ResponseCode::ServiceReadyForNewUser, "Welcome to the FTP Server").into();
-        writer.write_all(&resp).await.unwrap();
+        writer.write(&resp).await.unwrap();
 
+        let mut client = Client::new(writer, self.server_root_dir.clone(), self.ftp_config.clone());
 
-        unimplemented!("");
+        // client.handle_command(reader).await.unwrap();
+        let mut reader = BufReader::new(reader).lines();
+
+        while let Some(line) = reader.next_line().await.unwrap() {
+            let command = line.trim().to_string();
+            let cmd = Command::new(command.as_bytes().to_vec()).unwrap();
+            client = client.handle_command(cmd).await.unwrap();
+        }
+
+        println!("CLIENT CLOSED");
     }
-
-    async fn handle_command(&self, cmd: Vec<u8>) -> Vec<u8> {
-        unimplemented!("");
-    }
-
 }
