@@ -1,5 +1,10 @@
 use std::path::{PathBuf, StripPrefixError};
 use std::{io, result};
+use std::fs::Metadata;
+use std::time::UNIX_EPOCH;
+use cfg_if::cfg_if;
+use time::OffsetDateTime;
+use tokio::fs::{metadata, read_dir};
 use tokio::io::{AsyncWriteExt, ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 use crate::client_command::{Command, DataTransferType};
@@ -7,7 +12,7 @@ use crate::error::FtpError;
 use crate::ftp_config::FtpConfig;
 use crate::ftp_responce_code::ResponseCode;
 use crate::ftp_response::Response;
-use crate::utils::prefix_slash;
+use crate::utils::{prefix_slash, CONFIG_FILE};
 
 pub type Result<T> = result::Result<T, FtpError>;
 
@@ -50,6 +55,8 @@ impl Client {
         if self.is_logged_in() {
             match cmd {
                 Command::CWD(directory) => return Ok(self.handle_cwd(directory).await?),
+                Command::LIST(path) => return Ok(self.list(path)?)
+
                 _ => unimplemented!()
             }
         } else if self.name.is_some() && self.waiting_password {
@@ -89,6 +96,39 @@ impl Client {
         }
 
     }
+    async fn list(mut self, path_buf: Option<PathBuf>) -> Result<Self> {
+        if self.data_writer.is_some() {
+            let path = self.cwd.join(path_buf.unwrap_or_default());
+            let directory = PathBuf::from(&path);
+            let (new_client, complete_path) = self.complete_path(directory);
+            self = new_client;
+            if let Ok(path) = complete_path {
+                self = self.send_response(
+                    Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to list directories")
+                );
+
+                let mut out = vec![];
+
+                if path.is_dir() {
+                    let mut dir_reader = read_dir(path).await?;
+
+                    while let Some(entry) = dir_reader.next_entry().await? {
+                        if self.is_admin || entry.path()  != self.server_root_dir.join(CONFIG_FILE) {
+                            complete
+                            add_file(entry.path(), &mut out).await;
+                        }
+                    }
+                }
+
+                unimplemented!()
+            } else {
+                unimplemented!()
+            }
+        } else {
+            unimplemented!()
+        }
+    }
+
 
     fn complete_path(self, path: PathBuf) -> (Self, result::Result<PathBuf, io::Error>) {
         let directory = self.server_root_dir.join( if path.has_root() {
