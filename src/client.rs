@@ -1,9 +1,6 @@
 use std::path::{PathBuf, StripPrefixError};
 use std::{io, result};
-use std::fs::Metadata;
-use std::time::UNIX_EPOCH;
-use cfg_if::cfg_if;
-use time::OffsetDateTime;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 use tokio::fs::{metadata, read_dir};
 use tokio::io::{AsyncWriteExt, ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
@@ -56,7 +53,7 @@ impl Client {
             match cmd {
                 Command::CWD(directory) => return Ok(self.handle_cwd(directory).await?),
                 Command::LIST(path) => return Ok(self.list(path).await?),
-
+                Command::PASV => return Ok(self.pasv().await?),
                 _ => unimplemented!()
             }
         } else if self.name.is_some() && self.waiting_password {
@@ -181,5 +178,40 @@ impl Client {
     fn close_data_connection(&mut self) {
         self.data_reader = None;
         self.data_writer = None;
+    }
+
+    async fn pasv(mut self) -> Result<Self> {
+        // Ok(self)
+        // provide implementation for PASSIVE connection
+        let port = if let Some(port) = self.data_port {
+            port
+        } else {
+            0
+        };
+
+        if self.data_writer.is_some() {
+            self = self.send_response(Response::new(ResponseCode::DataConnectionAlreadyOpen, "Data connection already open")).await?;
+            return Ok(self);
+        }
+
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0,0,0,0)),port);
+        let listener = tokio::net::TcpListener::bind(&addr).await?;
+        // new port
+        let port = listener.local_addr()?.port();
+
+        self = self.send_response(Response::new(ResponseCode::EnteringPassiveMode, &format!("Entering Passive Mode (0,0,0,0,{},{}).", port >> 8, port & 0xFF))).await?;
+
+        println!("\t\tWaiting Incoming Clients on PORT: {}", port);
+
+        for (stream, addr) in listener.accept().await {
+            println!("\t\tNew Client Connected: {}", addr);
+            let (reader, writer) = tokio::io::split(stream);
+            self.data_reader = Some(reader);
+            self.data_writer = Some(writer);
+
+            break;
+        }
+
+        Ok(self)
     }
 }
