@@ -10,9 +10,9 @@ use tokio::net::TcpStream;
 use crate::client_command::{Command, DataTransferType};
 use crate::error::FtpError;
 use crate::ftp_config::FtpConfig;
-use crate::ftp_responce_code::ResponseCode;
+use crate::ftp_response_code::ResponseCode;
 use crate::ftp_response::Response;
-use crate::utils::{prefix_slash, CONFIG_FILE};
+use crate::utils::{add_file_info, prefix_slash, CONFIG_FILE};
 
 pub type Result<T> = result::Result<T, FtpError>;
 
@@ -55,7 +55,7 @@ impl Client {
         if self.is_logged_in() {
             match cmd {
                 Command::CWD(directory) => return Ok(self.handle_cwd(directory).await?),
-                Command::LIST(path) => return Ok(self.list(path)?)
+                Command::LIST(path) => return Ok(self.list(path).await?),
 
                 _ => unimplemented!()
             }
@@ -105,28 +105,40 @@ impl Client {
             if let Ok(path) = complete_path {
                 self = self.send_response(
                     Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to list directories")
-                );
+                ).await?;
 
                 let mut out = vec![];
 
                 if path.is_dir() {
-                    let mut dir_reader = read_dir(path).await?;
-
-                    while let Some(entry) = dir_reader.next_entry().await? {
-                        if self.is_admin || entry.path()  != self.server_root_dir.join(CONFIG_FILE) {
-                            complete
-                            add_file(entry.path(), &mut out).await;
+                    if let Ok(mut dir_reader) = read_dir(path).await{
+                        while let Some(entry) = dir_reader.next_entry().await? {
+                            if self.is_admin || entry.path() != self.server_root_dir.join(CONFIG_FILE) {
+                                add_file_info(entry.path(), &mut out).await;
+                            }
                         }
+                        // self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Directory send OK")).await?;
+                    } else {
+                        self = self.send_response(Response::new(ResponseCode::InvalidParameterOrArgument, "No such file or directory")).await?;
+                        return Ok(self);
                     }
+                } else if self.is_admin || path != self.server_root_dir.join(CONFIG_FILE) {
+                    add_file_info(path, &mut out).await;
                 }
-
-                unimplemented!()
+                self = self.send_data(out).await?;
+                println!("-> DONE TRAVERSING DIRECTORIES");
             } else {
-                unimplemented!()
+                self = self.send_response(Response::new(ResponseCode::InvalidParameterOrArgument, "No such file or directory")).await?;
             }
         } else {
-            unimplemented!()
+            self = self.send_response(Response::new(ResponseCode::ConnectionClosed, "No opened data connection")).await?;
         }
+
+        if self.data_writer.is_some() {
+            self.close_data_connection();
+            self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Directories Transfer done")).await?;
+        }
+
+        Ok(self)
     }
 
 
@@ -154,7 +166,20 @@ impl Client {
 
 
     async fn send_response(mut self, resp: Response) -> Result<Self> {
-        self.writer.write(&resp.to_bytes()).await?;
+        self.writer.write_all(&resp.to_bytes()).await?;
         Ok(self)
+    }
+
+    async fn send_data(mut self, data: Vec<u8>) -> Result<Self> {
+        if let Some(mut writer) = self.data_writer {
+            writer.write_all(&data).await?;
+            self.data_writer = Some(writer)
+        }
+        Ok(self)
+    }
+
+    fn close_data_connection(&mut self) {
+        self.data_reader = None;
+        self.data_writer = None;
     }
 }

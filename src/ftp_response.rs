@@ -1,5 +1,5 @@
 use std::io::Write;
-use crate::ftp_responce_code::ResponseCode;
+use crate::ftp_response_code::ResponseCode;
 
 pub struct Response {
     pub code: ResponseCode,

@@ -4,7 +4,7 @@ use tokio::net::TcpStream;
 use crate::client::Client;
 use crate::client_command::Command;
 use crate::ftp_config::FtpConfig;
-use crate::ftp_responce_code::ResponseCode;
+use crate::ftp_response_code::ResponseCode;
 use crate::ftp_response::Response;
 
 pub struct ClientHandler {

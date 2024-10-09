@@ -1,17 +1,13 @@
+
 use std::fs::Metadata;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 use bytes::BytesMut;
-use cfg_if::cfg_if;
 use time::OffsetDateTime;
 use tokio::fs::{metadata, File};
 use tokio::io::AsyncReadExt;
 
 pub const CONFIG_FILE: &str = "config.json";
-
-#[macro_use]
-extern crate cfg_if;
-extern crate time;
 
 cfg_if! {
     if #[cfg(windows)] {
@@ -27,8 +23,7 @@ cfg_if! {
     }
 }
 
-
-
+// Rest of the code...
 pub async fn get_content<P: AsRef<Path>>(file_path:&P) -> Option<String> {
     let mut file = File::open(file_path).await.ok()?;
     let mut content = String::new();
@@ -76,7 +71,50 @@ pub async fn add_file_info(path: PathBuf, out: &mut Vec<u8>) {
         _ => return
     };
 
+    // get the file permissions
+    let rights = if metadata.permissions().readonly() {
+        "r--r--r--"
+    } else {
+        // getting the formatted permissions from the metadata of the file
+        &get_permissions(&metadata)
+    };
 
+    let file_info_str = format!(
+        "{is_dir}{rights} {links} {owner} {group} {size} {month} {day} {hour}:{min} {path}{extra}\r\n",
+        is_dir = is_dir,
+        rights = rights,
+        links = 1,
+        owner = "ftp-rustified",
+        group = "anonymous",
+        size = file_size,
+        month = time.month(),
+        day = time.day(),
+        hour = time.hour(),
+        min = time.minute(),
+        path = path,
+        extra = extra
+    );
 
+    out.extend(file_info_str.as_bytes());
 
+    println!("\t\tFILE INFO ==> {}",&file_info_str);
+}
+
+pub fn get_permissions(metadata: &Metadata) -> String {
+    use std::os::unix::prelude::*;
+    let permissions = metadata.permissions();
+    let mode = permissions.mode();
+
+    format!(
+        "{}{}{}{}{}{}{}{}{}",
+        if mode & 0o400 != 0 { 'r' } else { '-' },
+        if mode & 0o200 != 0 { 'w' } else { '-' },
+        if mode & 0o100 != 0 { 'x' } else { '-' },
+        if mode & 0o040 != 0 { 'r' } else { '-' },
+        if mode & 0o020 != 0 { 'w' } else { '-' },
+        if mode & 0o010 != 0 { 'x' } else { '-' },
+        if mode & 0o004 != 0 { 'r' } else { '-' },
+        if mode & 0o002 != 0 { 'w' } else { '-' },
+        if mode & 0o001 != 0 { 'x' } else { '-' },
+    )
 }

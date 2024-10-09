@@ -1,3 +1,8 @@
+
+#[macro_use]
+extern crate cfg_if;
+
+
 mod client_command;
 mod server;
 mod ftp_config;
@@ -5,7 +10,7 @@ mod ftp_user;
 mod utils;
 mod client_handler;
 mod ftp_response;
-mod ftp_responce_code;
+mod ftp_response_code;
 mod codec;
 mod error;
 mod client;
