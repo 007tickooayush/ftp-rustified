@@ -58,7 +58,17 @@ impl Client {
                     self.data_port = Some(port);
                     return Ok(self.send_response(Response::new(ResponseCode::Ok, &format!("PORT command successful, PORT: {}",port))).await?);
                 },
-                _ => unimplemented!()
+                Command::PWD => {
+                    let msg = format!("{}", self.cwd.to_str().unwrap_or(""));
+
+                    if !msg.is_empty() {
+                        let message = format!("\"{}\"",msg);
+                        return Ok(self.send_response(Response::new(ResponseCode::PATHNAMECreated, &message)).await?);
+                    } else {
+                        return Ok(self.send_response(Response::new(ResponseCode::FileNotFound, "No such file or directory")).await?);
+                    }
+                },
+                _ => ()
             }
         } else if self.name.is_some() && self.waiting_password {
             unimplemented!("");
