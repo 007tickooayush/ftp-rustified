@@ -54,6 +54,10 @@ impl Client {
                 Command::CWD(directory) => return Ok(self.handle_cwd(directory).await?),
                 Command::LIST(path) => return Ok(self.list(path).await?),
                 Command::PASV => return Ok(self.pasv().await?),
+                Command::PORT(port) => {
+                    self.data_port = Some(port);
+                    return Ok(self.send_response(Response::new(ResponseCode::Ok, &format!("PORT command successful, PORT: {}",port))).await?);
+                },
                 _ => unimplemented!()
             }
         } else if self.name.is_some() && self.waiting_password {
