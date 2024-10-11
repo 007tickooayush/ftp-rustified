@@ -1,8 +1,8 @@
 use std::path::{PathBuf, StripPrefixError};
 use std::{io, result};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
-use tokio::fs::{metadata, read_dir};
-use tokio::io::{AsyncWriteExt, ReadHalf, WriteHalf};
+use tokio::fs::{metadata, read_dir, File};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 use crate::client_command::{Command, DataTransferType};
 use crate::error::FtpError;
@@ -68,6 +68,7 @@ impl Client {
                         return Ok(self.send_response(Response::new(ResponseCode::FileNotFound, "No such file or directory")).await?);
                     }
                 },
+                Command::RETR(file) => return Ok(self.retr(file).await?),
                 _ => ()
             }
         } else if self.name.is_some() && self.waiting_password {
@@ -226,6 +227,53 @@ impl Client {
             break;
         }
 
+        Ok(self)
+    }
+
+    async fn retr(mut self, path: PathBuf) -> Result<Self> {
+        // checking for multiple data connections
+        if self.data_writer.is_some() {
+            let path = self.cwd.join(path);
+            let (new_client, complete_path) = self.complete_path(path.clone());
+            self = new_client;
+
+            if let Ok(path) = complete_path {
+                if path.is_file() && (self.is_admin || path != self.server_root_dir.join(CONFIG_FILE)) {
+                    self = self.send_response(Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to send the file")).await?;
+
+                    let mut file = File::open(path).await?;
+
+                    // reading the file all at once, but works for small files
+                    // let mut outbound = vec![];
+                    // file.read_to_end(&mut outbound).await?;
+
+
+                    // reading File chunk by chunk (8KB chunk) and sending via buffer
+                    let mut buffer = [0; 8192];
+                    loop {
+                        let bytes_read = file.read(&mut buffer).await?;
+                        if bytes_read == 0 {
+                            break;
+                        }
+                        self = self.send_data(buffer[..bytes_read].to_vec()).await?;
+                    }
+                    println!("\t\tTransfer Done ==>");
+                } else {
+                    let message = format!("\"{}\" doesnt exist", path.to_str().ok_or_else(|| FtpError::Msg("No Path".to_string()))?);
+                    self = self.send_response(Response::new(ResponseCode::LocalErrorInProcessing, &message)).await?;
+                }
+            } else {
+                let message = format!("\"{}\" doesnt exist", path.to_str().ok_or_else(|| FtpError::Msg("No Path".to_string()))?);
+                self = self.send_response(Response::new(ResponseCode::LocalErrorInProcessing, &message)).await?;
+            }
+        } else {
+            self = self.send_response(Response::new(ResponseCode::ConnectionClosed, "No opened data connection")).await?;
+        }
+
+        if self.data_writer.is_some() {
+            self.close_data_connection();
+            self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Data connection closed, Transfer Done")).await?;
+        }
         Ok(self)
     }
 }
