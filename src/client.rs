@@ -9,7 +9,7 @@ use crate::error::FtpError;
 use crate::ftp_config::FtpConfig;
 use crate::ftp_response_code::ResponseCode;
 use crate::ftp_response::Response;
-use crate::utils::{add_file_info, prefix_slash, CONFIG_FILE};
+use crate::utils::{add_file_info, invalid_path, prefix_slash, CONFIG_FILE};
 
 pub type Result<T> = result::Result<T, FtpError>;
 
@@ -69,6 +69,7 @@ impl Client {
                     }
                 },
                 Command::RETR(file) => return Ok(self.retr(file).await?),
+                Command::STOR(file) => return Ok(self.stor(file).await?),
                 _ => ()
             }
         } else if self.name.is_some() && self.waiting_password {
@@ -153,48 +154,6 @@ impl Client {
         Ok(self)
     }
 
-
-    fn complete_path(self, path: PathBuf) -> (Self, result::Result<PathBuf, io::Error>) {
-        let directory = self.server_root_dir.join( if path.has_root() {
-            path.iter().skip(1).collect()
-        } else {
-            path
-        });
-        let dir = directory.canonicalize();
-
-        if let Ok(ref dir) = dir {
-            if !dir.starts_with(&self.server_root_dir) {
-                return (self, Err(io::ErrorKind::PermissionDenied.into()))
-            }
-        }
-
-        (self,dir)
-    }
-
-    fn strip_prefix(self, dir: PathBuf) -> (Self, result::Result<PathBuf, StripPrefixError>) {
-        let res = dir.strip_prefix(&self.server_root_dir).map(|p| p.to_path_buf());
-        (self, res)
-    }
-
-
-    async fn send_response(mut self, resp: Response) -> Result<Self> {
-        self.writer.write_all(&resp.to_bytes()).await?;
-        Ok(self)
-    }
-
-    async fn send_data(mut self, data: Vec<u8>) -> Result<Self> {
-        if let Some(mut writer) = self.data_writer {
-            writer.write_all(&data).await?;
-            self.data_writer = Some(writer)
-        }
-        Ok(self)
-    }
-
-    fn close_data_connection(&mut self) {
-        self.data_reader = None;
-        self.data_writer = None;
-    }
-
     async fn pasv(mut self) -> Result<Self> {
         // Ok(self)
         // provide implementation for PASSIVE connection
@@ -275,5 +234,100 @@ impl Client {
             self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Data connection closed, Transfer Done")).await?;
         }
         Ok(self)
+    }
+
+    async fn stor(mut self, path: PathBuf) -> Result<Self> {
+        if self.data_reader.is_some() {
+            if invalid_path(&path)  || (!self.is_admin && path == self.server_root_dir.join(CONFIG_FILE)){
+                let error: io::Error = io::ErrorKind::PermissionDenied.into();
+                return Err(error.into());
+            }
+
+            let path = self.cwd.join(path);
+            self = self.send_response(Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to Store the file")).await?;
+            let (new_client, file_data) = self.receive_data().await?;
+            self = new_client;
+
+            let mut file = File::create(path).await?;
+            file.write_all(&file_data).await?;
+
+            println!("\t\tTransfer Done <==");
+
+            self.close_data_connection();
+
+            self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Data connection closed, Transfer Done")).await?;
+        } else {
+            self = self.send_response(Response::new(ResponseCode::ConnectionClosed, "No opened data connection")).await?;
+        }
+
+        Ok(self)
+    }
+
+    fn complete_path(self, path: PathBuf) -> (Self, result::Result<PathBuf, io::Error>) {
+        let directory = self.server_root_dir.join( if path.has_root() {
+            path.iter().skip(1).collect()
+        } else {
+            path
+        });
+        let dir = directory.canonicalize();
+
+        if let Ok(ref dir) = dir {
+            if !dir.starts_with(&self.server_root_dir) {
+                return (self, Err(io::ErrorKind::PermissionDenied.into()))
+            }
+        }
+
+        (self,dir)
+    }
+
+    fn strip_prefix(self, dir: PathBuf) -> (Self, result::Result<PathBuf, StripPrefixError>) {
+        let res = dir.strip_prefix(&self.server_root_dir).map(|p| p.to_path_buf());
+        (self, res)
+    }
+
+
+    async fn send_response(mut self, resp: Response) -> Result<Self> {
+        self.writer.write_all(&resp.to_bytes()).await?;
+        Ok(self)
+    }
+
+    async fn send_data(mut self, data: Vec<u8>) -> Result<Self> {
+        if let Some(mut writer) = self.data_writer {
+            writer.write_all(&data).await?;
+            self.data_writer = Some(writer)
+        }
+        Ok(self)
+    }
+
+    async fn receive_data(mut self) -> Result<(Self, Vec<u8>)> {
+        if self.data_reader.is_some() {
+            let mut file_data = vec![];
+
+            let mut reader = self.data_reader.take().ok_or_else(|| FtpError::Msg("No data reader".to_string()))?;
+            
+            // Read the entire file data in one go
+            // reader.read_to_end(&mut file_data).await?;
+
+            // read the file data in chunks (8KB)
+            let mut buffer = [0; 8192];
+            loop {
+                let bytes_read = reader.read(&mut buffer).await?;
+                if bytes_read == 0 {
+                    break;
+                }
+                file_data.extend_from_slice(&buffer[..bytes_read]);
+            }
+
+
+            Ok((self, file_data))
+        } else {
+            Ok((self, vec![]))
+        }
+        
+    }
+
+    fn close_data_connection(&mut self) {
+        self.data_reader = None;
+        self.data_writer = None;
     }
 }

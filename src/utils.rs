@@ -1,6 +1,6 @@
 
 use std::fs::Metadata;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
 use bytes::BytesMut;
 use time::OffsetDateTime;
@@ -117,4 +117,13 @@ pub fn get_permissions(metadata: &Metadata) -> String {
         if mode & 0o002 != 0 { 'w' } else { '-' },
         if mode & 0o001 != 0 { 'x' } else { '-' },
     )
+}
+
+pub fn invalid_path(path: &Path) -> bool {
+    for component in path.components() {
+        if let Component::ParentDir = component {
+            return true;
+        }
+    }
+    false
 }
