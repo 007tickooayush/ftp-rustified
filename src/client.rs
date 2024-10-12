@@ -1,4 +1,4 @@
-use std::path::{PathBuf, StripPrefixError};
+use std::path::{Path, PathBuf, StripPrefixError};
 use std::{io, result};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 use tokio::fs::{metadata, read_dir, File};
@@ -70,6 +70,13 @@ impl Client {
                 },
                 Command::RETR(file) => return Ok(self.retr(file).await?),
                 Command::STOR(file) => return Ok(self.stor(file).await?),
+                Command::CDUP => {
+                    if let Some(path) = self.cwd.parent().map(Path::to_path_buf) {
+                        self.cwd = path;
+                        prefix_slash(&mut self.cwd);
+                    }
+                    return Ok(self.send_response(Response::new(ResponseCode::Ok, "CDUP command successful")).await?);
+                }
                 _ => ()
             }
         } else if self.name.is_some() && self.waiting_password {
