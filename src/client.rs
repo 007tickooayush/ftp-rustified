@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf, StripPrefixError};
 use std::{io, result};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
-use tokio::fs::{metadata, read_dir, File};
+use tokio::fs::{create_dir, metadata, read_dir, File};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 use crate::client_command::{Command, DataTransferType};
@@ -9,7 +9,7 @@ use crate::error::FtpError;
 use crate::ftp_config::FtpConfig;
 use crate::ftp_response_code::ResponseCode;
 use crate::ftp_response::Response;
-use crate::utils::{add_file_info, invalid_path, prefix_slash, CONFIG_FILE};
+use crate::utils::{add_file_info, get_filename, invalid_path, prefix_slash, CONFIG_FILE};
 
 pub type Result<T> = result::Result<T, FtpError>;
 
@@ -76,7 +76,8 @@ impl Client {
                         prefix_slash(&mut self.cwd);
                     }
                     return Ok(self.send_response(Response::new(ResponseCode::Ok, "CDUP command successful")).await?);
-                }
+                },
+                Command::MKD(path) => return Ok(self.mkd(path).await?),
                 _ => ()
             }
         } else if self.name.is_some() && self.waiting_password {
@@ -268,6 +269,42 @@ impl Client {
         }
 
         Ok(self)
+    }
+
+    async fn mkd(mut self, path: PathBuf) -> Result<Self> {
+        let path = self.cwd.join(&path);
+        let parent = self.get_parent(path.clone());
+
+        if let Some(parent) = parent {
+            let parent = parent.to_path_buf();
+
+            let (new_client, complete_path) = self.complete_path(parent);
+            self = new_client;
+
+            if let Ok(mut dir) = complete_path {
+                if dir.is_dir() {
+                    let filename = get_filename(path);
+
+                    if let Some(filename) = filename {
+                        dir.push(filename);
+
+                        if create_dir(dir).await.is_ok() {
+                            self = self.send_response(Response::new(ResponseCode::PATHNAMECreated, "Directory created")).await?;
+                            return Ok(self);
+                        }
+
+                    }
+                }
+            }
+        }
+
+        self = self.send_response(Response::new(ResponseCode::FileNotFound, "Unable to create Folder")).await?;
+
+        Ok(self)
+    }
+
+    fn get_parent(&self, path: PathBuf) -> Option<PathBuf> {
+        path.parent().map(|p| p.to_path_buf())
     }
 
     fn complete_path(self, path: PathBuf) -> (Self, result::Result<PathBuf, io::Error>) {

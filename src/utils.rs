@@ -1,4 +1,5 @@
 
+use std::ffi::OsString;
 use std::fs::Metadata;
 use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
@@ -126,4 +127,8 @@ pub fn invalid_path(path: &Path) -> bool {
         }
     }
     false
+}
+
+pub fn get_filename(path: PathBuf) -> Option<OsString> {
+    path.file_name().map(|p| p.to_os_string())
 }
