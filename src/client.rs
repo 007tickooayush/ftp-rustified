@@ -107,7 +107,20 @@ impl Client {
                 return Ok(self);
             }
         }
-        unimplemented!("Match implementation for Command")
+        match cmd {
+            Command::AUTH => unimplemented!("Auth Command implementation"),
+            Command::QUIT => unimplemented!("Quit Command implementation"),
+            Command::SYST => unimplemented!("SYST Command functionality"),
+            Command::TYPE(type_) => unimplemented!("TYPE command implementation"),
+            Command::USER(content) => unimplemented!("USER command implementation"),
+            Command::NOOP => unimplemented!("NOOP Command functionality"),
+            Command::UNKNOWN(s) => unimplemented!("UNKNOWN Command functionality"),
+            _ => {
+                // handling the Command when User is not logged in
+                self = self.send_response(Response::new(ResponseCode::NotLoggedIn, "Please Log In first")).await?;
+            }
+        }
+        Ok(self)
     }
 
     async fn handle_cwd(mut self, directory: PathBuf) -> Result<Self> {
