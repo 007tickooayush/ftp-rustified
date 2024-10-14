@@ -83,7 +83,29 @@ impl Client {
                 _ => ()
             }
         } else if self.name.is_some() && self.waiting_password {
-            unimplemented!("");
+            if let Command::PASS(content) = cmd {
+                let mut ok = false;
+                if self.is_admin {
+                    ok = content == self.ftp_config.admin.as_ref().unwrap().password;
+                } else {
+                    for user in &self.ftp_config.users {
+                        if Some(&user.username) == self.name.as_ref() {
+                            if user.password == content {
+                                ok = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if ok {
+                    self.waiting_password = false;
+                    let name = self.name.clone().unwrap_or(String::new());
+                    self = self.send_response(Response::new(ResponseCode::UserLoggedIn, &format!("Welcome {}!", name))).await?;
+                } else {
+                    self = self.send_response(Response::new(ResponseCode::NotLoggedIn, "Invalid Password")).await?;
+                }
+                return Ok(self);
+            }
         }
         unimplemented!("Match implementation for Command")
     }
