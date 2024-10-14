@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf, StripPrefixError};
 use std::{io, result};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
-use tokio::fs::{create_dir, metadata, read_dir, File};
+use tokio::fs::{create_dir, metadata, read_dir, remove_dir_all, File};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 use crate::client_command::{Command, DataTransferType};
@@ -77,7 +77,9 @@ impl Client {
                     }
                     return Ok(self.send_response(Response::new(ResponseCode::Ok, "CDUP command successful")).await?);
                 },
+
                 Command::MKD(path) => return Ok(self.mkd(path).await?),
+                Command::RMD(path) => return Ok(self.rmd(path).await?),
                 _ => ()
             }
         } else if self.name.is_some() && self.waiting_password {
@@ -302,6 +304,20 @@ impl Client {
 
         Ok(self)
     }
+    async fn rmd(mut self, directory: PathBuf) -> Result<Self> {
+        let path = self.cwd.join(&directory);
+        let (new_client, complete_path) = self.complete_path(path);
+        self = new_client;
+
+        if let Ok(dir) = complete_path {
+            if remove_dir_all(dir).await.is_ok() {
+                self = self.send_response(Response::new(ResponseCode::RequestedFileActionOkay, "Folder Removed successfully")).await?;
+                return Ok(self);
+            }
+        }
+        self = self.send_response(Response::new(ResponseCode::FileNotFound, "Couldn't Remove Folder")).await?;
+        Ok(self)
+    }
 
     fn get_parent(&self, path: PathBuf) -> Option<PathBuf> {
         path.parent().map(|p| p.to_path_buf())
@@ -348,7 +364,7 @@ impl Client {
             let mut file_data = vec![];
 
             let mut reader = self.data_reader.take().ok_or_else(|| FtpError::Msg("No data reader".to_string()))?;
-            
+
             // Read the entire file data in one go
             // reader.read_to_end(&mut file_data).await?;
 
@@ -367,11 +383,12 @@ impl Client {
         } else {
             Ok((self, vec![]))
         }
-        
+
     }
 
     fn close_data_connection(&mut self) {
         self.data_reader = None;
         self.data_writer = None;
     }
+
 }
