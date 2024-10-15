@@ -110,9 +110,55 @@ impl Client {
         match cmd {
             Command::AUTH => self = self.send_response(Response::new(ResponseCode::CommandNotImplemented, "Not Implemented")).await?,
             Command::QUIT => self = self.quit().await?,
-            Command::SYST => unimplemented!("SYST Command functionality"),
-            Command::TYPE(type_) => unimplemented!("TYPE command implementation"),
-            Command::USER(content) => unimplemented!("USER command implementation"),
+            Command::SYST => {
+                self = self.send_response(Response::new(ResponseCode::Ok, "Bugger Off")).await?;
+            },
+            Command::TYPE(type_) => {
+                self.data_transfer_type = type_;
+                self = self.send_response(Response::new(ResponseCode::Ok, "Data Transfer Type Changed Successfully")).await?;
+            },
+            Command::USER(content) => {
+                if content.is_empty() {
+                    self = self.send_response(Response::new(ResponseCode::InvalidParameterOrArgument, "Invalid Username")).await?;
+                } else {
+                    let mut name = None;
+                    let mut password_req = true;
+
+                    self.is_admin = false;
+
+                    if let Some(ref admin) = self.ftp_config.admin {
+                        if admin.username == content {
+                            name = Some(content.clone());
+                            password_req = admin.password.is_empty() == false;
+                            self.is_admin = true;
+                        }
+                    }
+
+                    if name.is_none() {
+                        for user in &self.ftp_config.users {
+                            if user.username == content {
+                                name = Some(content.clone());
+                                password_req = user.password.is_empty() == false;
+                                break;
+                            }
+                        }
+                    }
+
+                    if name.is_none() {
+                        self = self.send_response(Response::new(ResponseCode::NotLoggedIn, "Unknown User!")).await?;
+                    } else {
+                        self.name = name.clone();
+
+                        if password_req {
+                            self.waiting_password = true;
+                            self = self.send_response(Response::new(ResponseCode::UserNameOkayNeedPassword, &format!("Provide password for {}", name.unwrap()))).await?;
+                        } else {
+                            self.waiting_password = false;
+                            self = self.send_response(Response::new(ResponseCode::UserLoggedIn, &format!("Welcome {}!", name.unwrap()))).await?; // name == content
+                        }
+                    }
+                }
+            },
             Command::NOOP => unimplemented!("NOOP Command functionality"),
             Command::UNKNOWN(s) => unimplemented!("UNKNOWN Command functionality"),
             _ => {
