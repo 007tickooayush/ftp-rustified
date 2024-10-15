@@ -108,8 +108,8 @@ impl Client {
             }
         }
         match cmd {
-            Command::AUTH => unimplemented!("Auth Command implementation"),
-            Command::QUIT => unimplemented!("Quit Command implementation"),
+            Command::AUTH => self = self.send_response(Response::new(ResponseCode::CommandNotImplemented, "Not Implemented")).await?,
+            Command::QUIT => self = self.quit().await?,
             Command::SYST => unimplemented!("SYST Command functionality"),
             Command::TYPE(type_) => unimplemented!("TYPE command implementation"),
             Command::USER(content) => unimplemented!("USER command implementation"),
@@ -426,4 +426,15 @@ impl Client {
         self.data_writer = None;
     }
 
+    async fn quit(mut self) -> Result<Self> {
+        if self.data_writer.is_some() {
+            unimplemented!("Not implemented if the Data Writer for the Stream is Present")
+        } else {
+            self = self.send_response(Response::new(ResponseCode::ServiceClosingControlConnection, "Closing Connection...")).await?;
+            if let Some(mut writer) = self.data_writer.take() {
+                writer.shutdown().await?;
+            }
+        }
+        Ok(self)
+    }
 }
