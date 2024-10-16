@@ -15,8 +15,11 @@ mod codec;
 mod error;
 mod client;
 
+use std::path::PathBuf;
 use dotenv::dotenv;
+use tokio::fs::create_dir_all;
 use crate::ftp_config::FtpConfig;
+use crate::server::Server;
 
 #[tokio::main]
 async fn main() {
@@ -27,5 +30,14 @@ async fn main() {
     let host = format!("{}:{}", addr, port);
 
     let config = FtpConfig::new("ftp_server.json").await.unwrap();
+
+    let root_dir = std::env::var("ROOT_DIR").unwrap_or("ROOT".to_string());
+
+    let root_dir = PathBuf::from(root_dir);
+    create_dir_all(&root_dir).await.unwrap();
+
+
+    let server = Server::new(root_dir, config);
+    server.run().await;
 
 }

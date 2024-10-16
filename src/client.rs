@@ -159,8 +159,8 @@ impl Client {
                     }
                 }
             },
-            Command::NOOP => unimplemented!("NOOP Command functionality"),
-            Command::UNKNOWN(s) => unimplemented!("UNKNOWN Command functionality"),
+            Command::NOOP => self = self.send_response(Response::new(ResponseCode::Ok, "No Operation")).await?,
+            Command::UNKNOWN(s) => self = self.send_response(Response::new(ResponseCode::UnknownCommand, &format!("\"{}\": [Command Not Implemented]",s))).await?,
             _ => {
                 // handling the Command when User is not logged in
                 self = self.send_response(Response::new(ResponseCode::NotLoggedIn, "Please Log In first")).await?;
