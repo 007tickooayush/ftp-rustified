@@ -7,6 +7,7 @@ use crate::utils::bytes_to_uppercase;
 
 pub type Result<T> = result::Result<T, FtpError>;
 
+#[allow(dead_code)]
 pub enum Command {
     AUTH,
     CWD(PathBuf),

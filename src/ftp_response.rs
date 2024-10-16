@@ -1,4 +1,4 @@
-use std::io::Write;
+// use std::io::Write;
 use crate::ftp_response_code::ResponseCode;
 
 pub struct Response {

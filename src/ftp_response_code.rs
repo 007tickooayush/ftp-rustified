@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[repr(u32)]
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ResponseCode {
     RestartMarkerReply = 110,

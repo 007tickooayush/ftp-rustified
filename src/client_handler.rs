@@ -22,9 +22,9 @@ impl ClientHandler {
         }
     }
 
-    pub async fn handle_client(mut self) {
+    pub async fn handle_client(self) {
         // Using the tokio Framed implementation to handle the client
-        let (mut reader, mut writer) = tokio::io::split(self.stream);
+        let (reader, mut writer) = tokio::io::split(self.stream);
 
         let resp = &Response::new(ResponseCode::ServiceReadyForNewUser, "Welcome to the FTP Server").to_bytes();
         writer.write(resp).await.unwrap();

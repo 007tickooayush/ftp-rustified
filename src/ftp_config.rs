@@ -18,6 +18,10 @@ impl FtpConfig {
     /// Function to load the config file
     pub async fn new<P: AsRef<Path>>(file_path: P) -> Option<FtpConfig> {
         dotenv().ok();
+        // let addr = "0.0.0.0";
+        // let port = std::env::var("PORT").unwrap_or("2001".to_string());
+        // let host = format!("{}:{}", addr, port);
+
         let default_port = std::env::var("DEFAULT_PORT").unwrap_or("2001".to_string());
         let default_addr = std::env::var("DEFAULT_ADDR").unwrap_or("0.0.0.0".to_string());
 

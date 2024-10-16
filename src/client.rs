@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf, StripPrefixError};
 use std::{io, result};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
-use tokio::fs::{create_dir, metadata, read_dir, remove_dir_all, File};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use tokio::fs::{create_dir, read_dir, remove_dir_all, File};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 use crate::client_command::{Command, DataTransferType};
@@ -268,7 +268,7 @@ impl Client {
 
         println!("\t\tWaiting Incoming Clients on PORT: {}", port);
 
-        for (stream, addr) in listener.accept().await {
+        while let Ok((stream, addr)) = listener.accept().await {
             println!("\t\tNew Client Connected: {}", addr);
             let (reader, writer) = tokio::io::split(stream);
             self.data_reader = Some(reader);

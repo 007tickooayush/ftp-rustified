@@ -1,13 +1,11 @@
 use std::error;
 use std::error::Error;
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{Display, Formatter};
 use std::io;
-use std::result;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
 use self::FtpError::*;
-pub type Result<T> = result::Result<T, FtpError>;
 
 #[derive(Debug)]
 pub enum FtpError {

@@ -6,6 +6,7 @@ use std::time::UNIX_EPOCH;
 use bytes::BytesMut;
 use time::OffsetDateTime;
 use tokio::fs::{metadata, File};
+use tokio::io;
 use tokio::io::AsyncReadExt;
 
 pub const CONFIG_FILE: &str = "config.json";
@@ -131,4 +132,11 @@ pub fn invalid_path(path: &Path) -> bool {
 
 pub fn get_filename(path: PathBuf) -> Option<OsString> {
     path.file_name().map(|p| p.to_os_string())
+}
+
+pub async fn create_root_dir(path: &str) -> io::Result<()> {
+    if !Path::new(path).exists() {
+        tokio::fs::create_dir_all(path).await?;
+    }
+    Ok(())
 }
