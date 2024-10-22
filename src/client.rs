@@ -49,6 +49,7 @@ impl Client {
     }
 
     pub async fn handle_command(mut self, cmd: Command) -> Result<Self> {
+        println!("-> COMMAND: {:?}", &cmd);
         if self.is_logged_in() {
             match cmd {
                 Command::CWD(directory) => return Ok(self.handle_cwd(directory).await?),
@@ -428,7 +429,9 @@ impl Client {
 
 
     async fn send_response(mut self, resp: Response) -> Result<Self> {
-        self.writer.write_all(&resp.to_bytes()).await?;
+        let resp_string = resp.to_string();
+        println!("\t\t RESPONSE TO STRING: {}", &resp_string);
+        self.writer.write_all(resp_string.as_bytes()).await?;
         Ok(self)
     }
 

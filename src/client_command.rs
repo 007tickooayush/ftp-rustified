@@ -8,6 +8,7 @@ use crate::utils::bytes_to_uppercase;
 pub type Result<T> = result::Result<T, FtpError>;
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub enum Command {
     AUTH,
     CWD(PathBuf),
@@ -120,6 +121,7 @@ impl AsRef<str> for Command {
     }
 }
 
+#[derive(Debug)]
 pub enum DataTransferType {
     ASCII,
     IMAGE,

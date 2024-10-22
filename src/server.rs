@@ -25,8 +25,8 @@ impl Server {
         let port = &self.ftp_config.port;
 
         let socket_addr = SocketAddr::new(IpAddr::V4(addr.parse().unwrap()), *port);
-
-        println!("Client expected at {}", socket_addr);
+        println!("\t\tRunning server at: {}", socket_addr);
+        println!("\t\tClient expected at {}", socket_addr);
 
         let listener = TcpListener::bind(&socket_addr).await.unwrap();
 
@@ -39,6 +39,7 @@ impl Server {
                 let ftp_config = self.ftp_config.clone();
 
                 tokio::spawn(async move {
+                    println!("\t\tHandling client: {}", address);
                     let client = ClientHandler::new(stream, root_dir_server.clone(), ftp_config.clone());
                     client.handle_client().await;
                 });

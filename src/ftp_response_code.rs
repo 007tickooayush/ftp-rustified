@@ -48,7 +48,16 @@ pub enum ResponseCode {
 impl ResponseCode {
     pub fn to_bytes(self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&(self as u32).to_be_bytes());
+        bytes.extend_from_slice(&(self.clone() as u32).to_be_bytes());
+        println!("\t\tRESPONSE CODE VALUE ==> {:?}",self as u32);
+        println!("\t\tRESPONSE CODE BYTES ==> {:?}",String::from_utf8_lossy(&bytes));
         bytes
     }
+}
+
+#[test]
+fn test_response_code() {
+    let response_code = ResponseCode::Ok;
+    let bytes = response_code.to_bytes();
+    assert_eq!(bytes, vec![0, 0, 0, 200]);
 }
