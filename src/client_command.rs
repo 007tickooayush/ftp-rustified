@@ -33,10 +33,10 @@ pub enum Command {
 impl Command {
     pub fn new(input: Vec<u8>) -> Result<Self> {
         let mut iter = input.split(|&byte| byte == b' ');
-        let mut command = iter.next().ok_or_else(|| FtpError::Msg("Empty command".to_string()))?.to_vec();
+        let mut command = iter.next().ok_or_else(|| FtpError::Msg("Empty command\r\n".to_string()))?.to_vec();
         bytes_to_uppercase(&mut command);
 
-        let data = iter.next().ok_or_else(|| FtpError::Msg("No Command Parameter".to_string()));
+        let data = iter.next().ok_or_else(|| FtpError::Msg("No Command Parameter\r\n".to_string()));
 
         let command = match command.as_slice() {
             b"AUTH" => Command::AUTH,

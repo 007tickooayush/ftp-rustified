@@ -57,16 +57,16 @@ impl Client {
                 Command::PASV => return Ok(self.pasv().await?),
                 Command::PORT(port) => {
                     self.data_port = Some(port);
-                    return Ok(self.send_response(Response::new(ResponseCode::Ok, &format!("PORT command successful, PORT: {}",port))).await?);
+                    return Ok(self.send_response(Response::new(ResponseCode::Ok, &format!("PORT command successful, PORT: {}\r\n",port))).await?);
                 },
                 Command::PWD => {
                     let msg = format!("{}", self.cwd.to_str().unwrap_or(""));
 
                     if !msg.is_empty() {
-                        let message = format!("\"{}\"",msg);
+                        let message = format!("\"{}\"\r\n",msg);
                         return Ok(self.send_response(Response::new(ResponseCode::PATHNAMECreated, &message)).await?);
                     } else {
-                        return Ok(self.send_response(Response::new(ResponseCode::FileNotFound, "No such file or directory")).await?);
+                        return Ok(self.send_response(Response::new(ResponseCode::FileNotFound, "No such file or directory\r\n")).await?);
                     }
                 },
                 Command::RETR(file) => return Ok(self.retr(file).await?),
@@ -76,7 +76,7 @@ impl Client {
                         self.cwd = path;
                         prefix_slash(&mut self.cwd);
                     }
-                    return Ok(self.send_response(Response::new(ResponseCode::Ok, "CDUP command successful")).await?);
+                    return Ok(self.send_response(Response::new(ResponseCode::Ok, "CDUP command successful\r\n")).await?);
                 },
 
                 Command::MKD(path) => return Ok(self.mkd(path).await?),
@@ -101,26 +101,26 @@ impl Client {
                 if ok {
                     self.waiting_password = false;
                     let name = self.name.clone().unwrap_or(String::new());
-                    self = self.send_response(Response::new(ResponseCode::UserLoggedIn, &format!("Welcome {}!", name))).await?;
+                    self = self.send_response(Response::new(ResponseCode::UserLoggedIn, &format!("Welcome {}!\t\n", name))).await?;
                 } else {
-                    self = self.send_response(Response::new(ResponseCode::NotLoggedIn, "Invalid Password")).await?;
+                    self = self.send_response(Response::new(ResponseCode::NotLoggedIn, "Invalid Password\r\n")).await?;
                 }
                 return Ok(self);
             }
         }
         match cmd {
-            Command::AUTH => self = self.send_response(Response::new(ResponseCode::CommandNotImplemented, "Not Implemented")).await?,
+            Command::AUTH => self = self.send_response(Response::new(ResponseCode::CommandNotImplemented, "Not Implemented\r\n")).await?,
             Command::QUIT => self = self.quit().await?,
             Command::SYST => {
-                self = self.send_response(Response::new(ResponseCode::Ok, "Bugger Off")).await?;
+                self = self.send_response(Response::new(ResponseCode::Ok, "Bugger Off\r\n")).await?;
             },
             Command::TYPE(type_) => {
                 self.data_transfer_type = type_;
-                self = self.send_response(Response::new(ResponseCode::Ok, "Data Transfer Type Changed Successfully")).await?;
+                self = self.send_response(Response::new(ResponseCode::Ok, "Data Transfer Type Changed Successfully\r\n")).await?;
             },
             Command::USER(content) => {
                 if content.is_empty() {
-                    self = self.send_response(Response::new(ResponseCode::InvalidParameterOrArgument, "Invalid Username")).await?;
+                    self = self.send_response(Response::new(ResponseCode::InvalidParameterOrArgument, "Invalid Username\r\n")).await?;
                 } else {
                     let mut name = None;
                     let mut password_req = true;
@@ -146,25 +146,25 @@ impl Client {
                     }
 
                     if name.is_none() {
-                        self = self.send_response(Response::new(ResponseCode::NotLoggedIn, "Unknown User!")).await?;
+                        self = self.send_response(Response::new(ResponseCode::NotLoggedIn, "Unknown User!\r\n")).await?;
                     } else {
                         self.name = name.clone();
 
                         if password_req {
                             self.waiting_password = true;
-                            self = self.send_response(Response::new(ResponseCode::UserNameOkayNeedPassword, &format!("Provide password for {}", name.unwrap()))).await?;
+                            self = self.send_response(Response::new(ResponseCode::UserNameOkayNeedPassword, &format!("Provide password for {}\r\n", name.unwrap()))).await?;
                         } else {
                             self.waiting_password = false;
-                            self = self.send_response(Response::new(ResponseCode::UserLoggedIn, &format!("Welcome {}!", name.unwrap()))).await?; // name == content
+                            self = self.send_response(Response::new(ResponseCode::UserLoggedIn, &format!("Welcome {}!\r\n", name.unwrap()))).await?; // name == content
                         }
                     }
                 }
             },
-            Command::NOOP => self = self.send_response(Response::new(ResponseCode::Ok, "No Operation")).await?,
-            Command::UNKNOWN(s) => self = self.send_response(Response::new(ResponseCode::UnknownCommand, &format!("\"{}\": [Command Not Implemented]",s))).await?,
+            Command::NOOP => self = self.send_response(Response::new(ResponseCode::Ok, "No Operation\r\n")).await?,
+            Command::UNKNOWN(s) => self = self.send_response(Response::new(ResponseCode::UnknownCommand, &format!("\"{}\": [Command Not Implemented]\r\n",s))).await?,
             _ => {
                 // handling the Command when User is not logged in
-                self = self.send_response(Response::new(ResponseCode::NotLoggedIn, "Please Log In first")).await?;
+                self = self.send_response(Response::new(ResponseCode::NotLoggedIn, "Please Log In first\r\n")).await?;
             }
         }
         Ok(self)
@@ -185,18 +185,18 @@ impl Client {
                 prefix_slash(&mut self.cwd);
                 let resp = Response::new(
                     ResponseCode::RequestedFileActionOkay,
-                    &format!("Directory changed to \"{}\"", directory.display())
+                    &format!("Directory changed to \"{}\"\r\n", directory.display())
                 );
 
                 self = self.send_response(resp).await?;
 
                 Ok(self)
             } else {
-                self = self.send_response(Response::new(ResponseCode::FileNotFound, "No such file or directory")).await?;
+                self = self.send_response(Response::new(ResponseCode::FileNotFound, "No such file or directory\r\n")).await?;
                 Ok(self)
             }
         } else {
-            self = self.send_response(Response::new(ResponseCode::FileNotFound, "No such file or directory")).await?;
+            self = self.send_response(Response::new(ResponseCode::FileNotFound, "No such file or directory\r\n")).await?;
             Ok(self)
         }
 
@@ -209,7 +209,7 @@ impl Client {
             self = new_client;
             if let Ok(path) = complete_path {
                 self = self.send_response(
-                    Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to list directories")
+                    Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to list directories\r\n")
                 ).await?;
 
                 let mut out = vec![];
@@ -221,9 +221,9 @@ impl Client {
                                 add_file_info(entry.path(), &mut out).await;
                             }
                         }
-                        // self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Directory send OK")).await?;
+                        // self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Directory send OK\r\n")).await?;
                     } else {
-                        self = self.send_response(Response::new(ResponseCode::InvalidParameterOrArgument, "No such file or directory")).await?;
+                        self = self.send_response(Response::new(ResponseCode::InvalidParameterOrArgument, "No such file or directory\r\n")).await?;
                         return Ok(self);
                     }
                 } else if self.is_admin || path != self.server_root_dir.join(CONFIG_FILE) {
@@ -232,15 +232,15 @@ impl Client {
                 self = self.send_data(out).await?;
                 println!("-> DONE TRAVERSING DIRECTORIES");
             } else {
-                self = self.send_response(Response::new(ResponseCode::InvalidParameterOrArgument, "No such file or directory")).await?;
+                self = self.send_response(Response::new(ResponseCode::InvalidParameterOrArgument, "No such file or directory\r\n")).await?;
             }
         } else {
-            self = self.send_response(Response::new(ResponseCode::ConnectionClosed, "No opened data connection")).await?;
+            self = self.send_response(Response::new(ResponseCode::ConnectionClosed, "No opened data connection\r\n")).await?;
         }
 
         if self.data_writer.is_some() {
             self.close_data_connection();
-            self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Directories Transfer done")).await?;
+            self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Directories Transfer done\r\n")).await?;
         }
 
         Ok(self)
@@ -256,7 +256,7 @@ impl Client {
         };
 
         if self.data_writer.is_some() {
-            self = self.send_response(Response::new(ResponseCode::DataConnectionAlreadyOpen, "Data connection already open")).await?;
+            self = self.send_response(Response::new(ResponseCode::DataConnectionAlreadyOpen, "Data connection already open\r\n")).await?;
             return Ok(self);
         }
 
@@ -265,7 +265,7 @@ impl Client {
         // new port
         let port = listener.local_addr()?.port();
 
-        self = self.send_response(Response::new(ResponseCode::EnteringPassiveMode, &format!("Entering Passive Mode (0,0,0,0,{},{}).", port >> 8, port & 0xFF))).await?;
+        self = self.send_response(Response::new(ResponseCode::EnteringPassiveMode, &format!("Entering Passive Mode (0,0,0,0,{},{}).\r\n", port >> 8, port & 0xFF))).await?;
 
         println!("\t\tWaiting Incoming Clients on PORT: {}", port);
 
@@ -290,7 +290,7 @@ impl Client {
 
             if let Ok(path) = complete_path {
                 if path.is_file() && (self.is_admin || path != self.server_root_dir.join(CONFIG_FILE)) {
-                    self = self.send_response(Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to send the file")).await?;
+                    self = self.send_response(Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to send the file\r\n")).await?;
 
                     let mut file = File::open(path).await?;
 
@@ -310,20 +310,20 @@ impl Client {
                     }
                     println!("\t\tTransfer Done ==>");
                 } else {
-                    let message = format!("\"{}\" doesnt exist", path.to_str().ok_or_else(|| FtpError::Msg("No Path".to_string()))?);
+                    let message = format!("\"{}\" doesnt exist", path.to_str().ok_or_else(|| FtpError::Msg("No Path\r\n".to_string()))?);
                     self = self.send_response(Response::new(ResponseCode::LocalErrorInProcessing, &message)).await?;
                 }
             } else {
-                let message = format!("\"{}\" doesnt exist", path.to_str().ok_or_else(|| FtpError::Msg("No Path".to_string()))?);
+                let message = format!("\"{}\" doesnt exist", path.to_str().ok_or_else(|| FtpError::Msg("No Path\r\n".to_string()))?);
                 self = self.send_response(Response::new(ResponseCode::LocalErrorInProcessing, &message)).await?;
             }
         } else {
-            self = self.send_response(Response::new(ResponseCode::ConnectionClosed, "No opened data connection")).await?;
+            self = self.send_response(Response::new(ResponseCode::ConnectionClosed, "No opened data connection\r\n")).await?;
         }
 
         if self.data_writer.is_some() {
             self.close_data_connection();
-            self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Data connection closed, Transfer Done")).await?;
+            self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Data connection closed, Transfer Done\r\n")).await?;
         }
         Ok(self)
     }
@@ -336,7 +336,7 @@ impl Client {
             }
 
             let path = self.cwd.join(path);
-            self = self.send_response(Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to Store the file")).await?;
+            self = self.send_response(Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to Store the file\r\n")).await?;
             let (new_client, file_data) = self.receive_data().await?;
             self = new_client;
 
@@ -347,9 +347,9 @@ impl Client {
 
             self.close_data_connection();
 
-            self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Data connection closed, Transfer Done")).await?;
+            self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Data connection closed, Transfer Done\r\n")).await?;
         } else {
-            self = self.send_response(Response::new(ResponseCode::ConnectionClosed, "No opened data connection")).await?;
+            self = self.send_response(Response::new(ResponseCode::ConnectionClosed, "No opened data connection\r\n")).await?;
         }
 
         Ok(self)
@@ -373,7 +373,7 @@ impl Client {
                         dir.push(filename);
 
                         if create_dir(dir).await.is_ok() {
-                            self = self.send_response(Response::new(ResponseCode::PATHNAMECreated, "Directory created")).await?;
+                            self = self.send_response(Response::new(ResponseCode::PATHNAMECreated, "Directory created\r\n")).await?;
                             return Ok(self);
                         }
 
@@ -382,7 +382,7 @@ impl Client {
             }
         }
 
-        self = self.send_response(Response::new(ResponseCode::FileNotFound, "Unable to create Folder")).await?;
+        self = self.send_response(Response::new(ResponseCode::FileNotFound, "Unable to create Folder\r\n")).await?;
 
         Ok(self)
     }
@@ -393,11 +393,11 @@ impl Client {
 
         if let Ok(dir) = complete_path {
             if remove_dir_all(dir).await.is_ok() {
-                self = self.send_response(Response::new(ResponseCode::RequestedFileActionOkay, "Folder Removed successfully")).await?;
+                self = self.send_response(Response::new(ResponseCode::RequestedFileActionOkay, "Folder Removed successfully\r\n")).await?;
                 return Ok(self);
             }
         }
-        self = self.send_response(Response::new(ResponseCode::FileNotFound, "Couldn't Remove Folder")).await?;
+        self = self.send_response(Response::new(ResponseCode::FileNotFound, "Couldn't Remove Folder\r\n")).await?;
         Ok(self)
     }
 
@@ -447,7 +447,7 @@ impl Client {
         if self.data_reader.is_some() {
             let mut file_data = vec![];
 
-            let mut reader = self.data_reader.take().ok_or_else(|| FtpError::Msg("No data reader".to_string()))?;
+            let mut reader = self.data_reader.take().ok_or_else(|| FtpError::Msg("No data reader\r\n".to_string()))?;
 
             // Read the entire file data in one go
             // reader.read_to_end(&mut file_data).await?;
@@ -479,7 +479,7 @@ impl Client {
         if self.data_writer.is_some() {
             unimplemented!("Not implemented if the Data Writer for the Stream is Present")
         } else {
-            self = self.send_response(Response::new(ResponseCode::ServiceClosingControlConnection, "Closing Connection...")).await?;
+            self = self.send_response(Response::new(ResponseCode::ServiceClosingControlConnection, "Closing Connection...\r\n")).await?;
             if let Some(mut writer) = self.data_writer.take() {
                 writer.shutdown().await?;
             }
