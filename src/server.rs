@@ -70,6 +70,7 @@ impl Server {
                         // let command = line.unwrap();
                         if let Some(command) = line {
                             println!("--------inside while Reading Command");
+                            println!("|||||| RAW Command: {} ||||||||", &command);
                             let command = command.trim().to_string();
                             let cmd = Command::new(command.as_bytes().to_vec()).unwrap();
                             client = client.handle_command(cmd).await.unwrap();

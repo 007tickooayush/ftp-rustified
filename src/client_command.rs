@@ -13,7 +13,7 @@ pub enum Command {
     AUTH,
     CWD(PathBuf),
     CDUP,
-    LIST(Option<PathBuf>),
+    LIST(Option<String>, Option<PathBuf>),
     MKD(PathBuf),
     NOOP,
     PORT(u16),
@@ -42,7 +42,16 @@ impl Command {
             b"AUTH" => Command::AUTH,
             b"CWD" => Command::CWD(data.and_then(|bytes|  Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
             b"CDUP" => Command::CDUP,
-            b"LIST" => Command::LIST(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf())).ok()),
+            // b"LIST" => Command::LIST(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf())).ok()),
+            b"LIST" => {
+                // let args = data.and_then(|bytes| Ok(from_str(from_utf8(bytes)?).unwrap_or(0)))?.to_string();
+                // let path = iter.next().ok_or_else(|| FtpError::Msg("No Path provided\r\n".to_string()))?;
+                // let path = Path::new(from_utf8(path)?).to_path_buf();
+                //
+                // Command::LIST(Some(args), Some(path))
+
+                unimplemented!("LIST command not implemented")
+            },
             b"PASV" => Command::PASV,
             b"MKD" => Command::MKD(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
             b"PORT" => {
@@ -102,7 +111,7 @@ impl AsRef<str> for Command {
             Command::AUTH => "AUTH",
             Command::CWD(_) => "CWD",
             Command::CDUP => "CDUP",
-            Command::LIST(_) => "LIST",
+            Command::LIST(_,_) => "LIST",
             Command::MKD(_) => "MKD",
             Command::NOOP => "NOOP",
             Command::PORT(_) => "PORT",

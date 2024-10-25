@@ -53,7 +53,7 @@ impl Client {
         if self.is_logged_in() {
             match cmd {
                 Command::CWD(directory) => return Ok(self.handle_cwd(directory).await?),
-                Command::LIST(path) => return Ok(self.list(path).await?),
+                Command::LIST(args, path) => return Ok(self.list(args, path).await?),
                 Command::PASV => return Ok(self.pasv().await?),
                 Command::PORT(port) => {
                     self.data_port = Some(port);
@@ -201,7 +201,10 @@ impl Client {
         }
 
     }
-    async fn list(mut self, path_buf: Option<PathBuf>) -> Result<Self> {
+
+    /// Handling the List command
+    /// NOTE: todo("Need to implement handling for parameters and not directly pass PathBuf")
+    async fn list(mut self, args: Option<String>, path_buf: Option<PathBuf>) -> Result<Self> {
         if self.data_writer.is_some() {
             let path = self.cwd.join(path_buf.unwrap_or_default());
             let directory = PathBuf::from(&path);
