@@ -53,7 +53,7 @@ impl Client {
         if self.is_logged_in() {
             match cmd {
                 Command::CWD(directory) => return Ok(self.handle_cwd(directory).await?),
-                Command::LIST(args, path) => return Ok(self.list(args, path).await?),
+                Command::LIST(args) => return Ok(self.list(args).await?),
                 Command::PASV => return Ok(self.pasv().await?),
                 Command::PORT(port) => {
                     self.data_port = Some(port);
@@ -204,41 +204,52 @@ impl Client {
 
     /// Handling the List command
     /// NOTE: todo("Need to implement handling for parameters and not directly pass PathBuf")
-    async fn list(mut self, args: Option<String>, path_buf: Option<PathBuf>) -> Result<Self> {
-        if self.data_writer.is_some() {
-            let path = self.cwd.join(path_buf.unwrap_or_default());
-            let directory = PathBuf::from(&path);
-            let (new_client, complete_path) = self.complete_path(directory);
-            self = new_client;
-            if let Ok(path) = complete_path {
-                self = self.send_response(
-                    Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to list directories\r\n")
-                ).await?;
+    async fn list(mut self, args: Option<String>) -> Result<Self> {
+        // , path_buf: Option<PathBuf>
+        if let Some(command) = args {
+            if command.starts_with('-') {
+                if String::from("-al").eq(&command) {
+                    // IMPLEMENTATION FOR -al
+                    if self.data_writer.is_some() {
+                        let path = self.cwd.clone();
+                        let directory = PathBuf::from(&path);
+                        let (new_client, complete_path) = self.complete_path(directory);
+                        self = new_client;
+                        if let Ok(path) = complete_path {
+                            self = self.send_response(
+                                Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to list directories\r\n")
+                            ).await?;
 
-                let mut out = vec![];
+                            let mut out = vec![];
 
-                if path.is_dir() {
-                    if let Ok(mut dir_reader) = read_dir(path).await{
-                        while let Some(entry) = dir_reader.next_entry().await? {
-                            if self.is_admin || entry.path() != self.server_root_dir.join(CONFIG_FILE) {
-                                add_file_info(entry.path(), &mut out).await;
+                            if path.is_dir() {
+                                if let Ok(mut dir_reader) = read_dir(path).await{
+                                    while let Some(entry) = dir_reader.next_entry().await? {
+                                        if self.is_admin || entry.path() != self.server_root_dir.join(CONFIG_FILE) {
+                                            add_file_info(entry.path(), &mut out).await;
+                                        }
+                                    }
+                                    // self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Directory send OK\r\n")).await?;
+                                } else {
+                                    self = self.send_response(Response::new(ResponseCode::InvalidParameterOrArgument, "No such file or directory\r\n")).await?;
+                                    return Ok(self);
+                                }
+                            } else if self.is_admin || path != self.server_root_dir.join(CONFIG_FILE) {
+                                add_file_info(path, &mut out).await;
                             }
+                            self = self.send_data(out).await?;
+                            println!("-> DONE TRAVERSING DIRECTORIES");
+                        } else {
+                            self = self.send_response(Response::new(ResponseCode::InvalidParameterOrArgument, "No such file or directory1\r\n")).await?;
                         }
-                        // self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Directory send OK\r\n")).await?;
                     } else {
-                        self = self.send_response(Response::new(ResponseCode::InvalidParameterOrArgument, "No such file or directory\r\n")).await?;
-                        return Ok(self);
+                        self = self.send_response(Response::new(ResponseCode::ConnectionClosed, "No opened data connection2\r\n")).await?;
                     }
-                } else if self.is_admin || path != self.server_root_dir.join(CONFIG_FILE) {
-                    add_file_info(path, &mut out).await;
+
+                } else {
+                    self = self.send_response(Response::new(ResponseCode::ConnectionClosed, "No opened data connection3\r\n")).await?;
                 }
-                self = self.send_data(out).await?;
-                println!("-> DONE TRAVERSING DIRECTORIES");
-            } else {
-                self = self.send_response(Response::new(ResponseCode::InvalidParameterOrArgument, "No such file or directory\r\n")).await?;
             }
-        } else {
-            self = self.send_response(Response::new(ResponseCode::ConnectionClosed, "No opened data connection\r\n")).await?;
         }
 
         if self.data_writer.is_some() {

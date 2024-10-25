@@ -13,7 +13,7 @@ pub enum Command {
     AUTH,
     CWD(PathBuf),
     CDUP,
-    LIST(Option<String>, Option<PathBuf>),
+    LIST(Option<String>),
     MKD(PathBuf),
     NOOP,
     PORT(u16),
@@ -49,6 +49,8 @@ impl Command {
                 // let path = Path::new(from_utf8(path)?).to_path_buf();
                 //
                 // Command::LIST(Some(args), Some(path))
+
+                // HANDLE for LIST -al or LIST <directory> as it will not necessarily be directory or Command Args Verb
 
                 unimplemented!("LIST command not implemented")
             },
@@ -111,7 +113,7 @@ impl AsRef<str> for Command {
             Command::AUTH => "AUTH",
             Command::CWD(_) => "CWD",
             Command::CDUP => "CDUP",
-            Command::LIST(_,_) => "LIST",
+            Command::LIST(_) => "LIST",
             Command::MKD(_) => "MKD",
             Command::NOOP => "NOOP",
             Command::PORT(_) => "PORT",
