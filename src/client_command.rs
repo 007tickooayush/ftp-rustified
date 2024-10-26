@@ -81,7 +81,7 @@ impl Command {
             b"QUIT" => Command::QUIT,
             b"RETR" => Command::RETR(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
             b"RMD" => Command::RMD(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
-            b"STOR" => Command::RETR(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
+            b"STOR" => Command::STOR(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
             b"SYST" => Command::SYST,
             b"TYPE" => {
                 let err: Result<Command> = Err("Command not implemented".into());
@@ -123,8 +123,8 @@ impl AsRef<str> for Command {
             Command::PWD => "PWD",
             Command::QUIT => "QUIT",
             Command::RETR(_) => "RETR",
-            Command::RMD(_) => "RMD",
             Command::STOR(_) => "STOR",
+            Command::RMD(_) => "RMD",
             Command::SYST => "SYST",
             Command::TYPE(_) => "TYPE",
             Command::USER(_) => "USER",
