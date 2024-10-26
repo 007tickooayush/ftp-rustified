@@ -8,7 +8,6 @@ mod server;
 mod ftp_config;
 mod ftp_user;
 mod utils;
-mod client_handler;
 mod ftp_response;
 mod ftp_response_code;
 mod codec;
