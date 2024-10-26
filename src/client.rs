@@ -345,6 +345,7 @@ impl Client {
     }
 
     async fn stor(mut self, path: PathBuf) -> Result<Self> {
+        println!("-> STOR: {:?}", &path);
         if self.data_reader.is_some() {
             if invalid_path(&path)  || (!self.is_admin && path == self.server_root_dir.join(CONFIG_FILE)){
                 let error: io::Error = io::ErrorKind::PermissionDenied.into();
