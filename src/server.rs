@@ -5,7 +5,6 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 use crate::client::Client;
 use crate::client_command::Command;
-use crate::client_handler::ClientHandler;
 use crate::ftp_config::FtpConfig;
 use crate::ftp_response::Response;
 use crate::ftp_response_code::ResponseCode;
