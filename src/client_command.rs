@@ -43,7 +43,8 @@ impl Command {
             b"CWD" => Command::CWD(data.and_then(|bytes|  Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
             b"CDUP" => Command::CDUP,
             // b"LIST" => Command::LIST(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf())).ok()),
-            b"LIST" => {
+            b"LIST" => Command::LIST(data.and_then(|bytes| Ok(from_utf8(bytes)?.to_string())).ok()),
+            /*b"LIST" => {
                 // let args = data.and_then(|bytes| Ok(from_str(from_utf8(bytes)?).unwrap_or(0)))?.to_string();
                 // let path = iter.next().ok_or_else(|| FtpError::Msg("No Path provided\r\n".to_string()))?;
                 // let path = Path::new(from_utf8(path)?).to_path_buf();
@@ -53,7 +54,7 @@ impl Command {
                 // HANDLE for LIST -al or LIST <directory> as it will not necessarily be directory or Command Args Verb
 
                 unimplemented!("LIST command not implemented")
-            },
+            },*/
             b"PASV" => Command::PASV,
             b"MKD" => Command::MKD(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
             b"PORT" => {

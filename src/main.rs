@@ -19,7 +19,7 @@ use std::path::PathBuf;
 use dotenv::dotenv;
 use crate::ftp_config::FtpConfig;
 use crate::server::Server;
-use crate::utils::create_root_dir;
+use crate::utils::{create_root_dir, get_current_dir};
 
 #[tokio::main]
 async fn main() {
@@ -27,7 +27,9 @@ async fn main() {
 
     let config = FtpConfig::new("ftp_server.json").await.unwrap();
 
-    let root_dir = std::env::var("ROOT_DIR").unwrap_or("ROOT".to_string());
+    let default_dir = get_current_dir();
+    let default_dir = default_dir.to_str().unwrap().to_string();
+    let root_dir = std::env::var("ROOT_DIR").unwrap_or(default_dir);
 
 
     // create_dir_all(&root_dir).await.unwrap();

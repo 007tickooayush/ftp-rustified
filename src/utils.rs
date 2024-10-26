@@ -1,4 +1,4 @@
-
+use std::env;
 use std::ffi::OsString;
 use std::fs::Metadata;
 use std::path::{Component, Path, PathBuf};
@@ -8,6 +8,7 @@ use time::OffsetDateTime;
 use tokio::fs::{metadata, File};
 use tokio::io;
 use tokio::io::AsyncReadExt;
+use crate::error::FtpError;
 
 pub const CONFIG_FILE: &str = "config.json";
 
@@ -139,4 +140,12 @@ pub async fn create_root_dir(path: &str) -> io::Result<()> {
         tokio::fs::create_dir_all(path).await?;
     }
     Ok(())
+}
+
+pub fn get_current_dir() -> PathBuf {
+    // env::current_dir().unwrap_or_else(|_| FtpError::Msg("Unable to get current directory\r\n".to_string()))
+    env::current_dir().unwrap_or_else(|_| {
+        FtpError::Msg("Unable to get current directory\r\n".to_string());
+        PathBuf::new()
+    })
 }

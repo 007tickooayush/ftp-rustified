@@ -9,7 +9,7 @@ use crate::error::FtpError;
 use crate::ftp_config::FtpConfig;
 use crate::ftp_response_code::ResponseCode;
 use crate::ftp_response::Response;
-use crate::utils::{add_file_info, get_filename, invalid_path, prefix_slash, CONFIG_FILE};
+use crate::utils::{add_file_info, get_current_dir, get_filename, invalid_path, prefix_slash, CONFIG_FILE};
 
 pub type Result<T> = result::Result<T, FtpError>;
 
@@ -211,6 +211,8 @@ impl Client {
                 if String::from("-al").eq(&command) {
                     // IMPLEMENTATION FOR -al
                     if self.data_writer.is_some() {
+                        println!("<><><>DATA is some");
+                        // let path = self.cwd.join(get_current_dir());
                         let path = self.cwd.clone();
                         let directory = PathBuf::from(&path);
                         let (new_client, complete_path) = self.complete_path(directory);
