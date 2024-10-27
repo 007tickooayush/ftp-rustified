@@ -346,6 +346,7 @@ impl Client {
 
     async fn stor(mut self, path: PathBuf) -> Result<Self> {
         println!("-> STOR: {:?}", &path);
+        // handle permissions  for the file creation in the server
         if self.data_reader.is_some() {
             if invalid_path(&path)  || (!self.is_admin && path == self.server_root_dir.join(CONFIG_FILE)){
                 let error: io::Error = io::ErrorKind::PermissionDenied.into();
@@ -357,8 +358,25 @@ impl Client {
             let (new_client, file_data) = self.receive_data().await?;
             self = new_client;
 
-            let mut file = File::create(path).await?;
-            file.write_all(&file_data).await?;
+            // let mut file = File::create(path).await?;
+            // file.write_all(&file_data).await?;
+            match tokio::fs::File::create(path).await {
+                Ok(mut file) => {
+
+                    // todo: write in chunks
+                    // writing all at once
+                    file.write_all(&file_data).await?;
+                },
+                Err(e) => {
+                    if e.kind() == io::ErrorKind::PermissionDenied {
+                        self.send_response(Response::new(ResponseCode::FileNotFound, "Permission Denied. 1X\r\n")).await?;
+                        // return Err(e.into());
+                    } else {
+                        self.send_response(Response::new(ResponseCode::FileNotFound, "Failed to store file.\r\n")).await?;
+                    }
+                    return Err(FtpError::Io(e));
+                }
+            }
 
             println!("\t\tTransfer Done <==");
 
@@ -471,6 +489,8 @@ impl Client {
 
             // read the file data in chunks (8KB)
             let mut buffer = [0; 8192];
+
+            // need to check reader
             loop {
                 let bytes_read = reader.read(&mut buffer).await?;
                 if bytes_read == 0 {
