@@ -1,11 +1,13 @@
 use std::env;
 use std::ffi::OsString;
 use std::fs::Metadata;
+use std::os::unix::prelude::PermissionsExt;
 use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
 use bytes::BytesMut;
+use chrono::{DateTime, Datelike, Local};
 use time::OffsetDateTime;
-use tokio::fs::{metadata, File};
+use tokio::fs::{metadata, read_dir, DirEntry, File};
 use tokio::io;
 use tokio::io::AsyncReadExt;
 use crate::error::FtpError;
@@ -83,7 +85,7 @@ pub async fn add_file_info(path: PathBuf, out: &mut Vec<u8>) {
     };
 
     let file_info_str = format!(
-        "{is_dir}{rights} {links} {owner} {group} {size} {month} {day} {hour}:{min} {path}{extra}\r\n",
+        "{is_dir}{rights} {links} {owner} {group} {size} {month} {day} {hour}:{min} {path}\r\n", //{extra}
         is_dir = is_dir,
         rights = rights,
         links = 1,
@@ -95,12 +97,12 @@ pub async fn add_file_info(path: PathBuf, out: &mut Vec<u8>) {
         hour = time.hour(),
         min = time.minute(),
         path = path,
-        extra = extra
+        // extra = extra
     );
 
     out.extend(file_info_str.as_bytes());
 
-    println!("\t\tFILE INFO ==> {}",&file_info_str);
+    // println!("\t\tFILE INFO ==> {}",&file_info_str);
 }
 
 pub fn get_permissions(metadata: &Metadata) -> String {
@@ -148,4 +150,89 @@ pub fn get_current_dir() -> PathBuf {
         FtpError::Msg("Unable to get current directory\r\n".to_string());
         PathBuf::new()
     })
+}
+
+#[tokio::test]
+async fn test_add_file_info() {
+    let mut out  = Vec::new();
+    let path = PathBuf::from("/home/hellsent/HRs/RR/ftp-rustified/ROOT/dir1");
+
+    add_file_info(path, &mut out).await;
+
+    println!("OUT ==> {:?}",String::from_utf8_lossy(&out));
+
+}
+
+#[tokio::test]
+async fn test_multiple_file() {
+    let mut out = Vec::new();
+    let path = PathBuf::from("/home/hellsent/HRs/RR/ftp-rustified/ROOT");
+
+    if path.is_dir() {
+        if let Ok(mut read_dir) = read_dir(path).await {
+            while let Some(entry) = read_dir.next_entry().await.unwrap() {
+                add_file_info(entry.path(), &mut out).await;
+                println!("@@OUT ==> {:?}",String::from_utf8_lossy(&out));
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn test__read_path_2() {
+    let path = PathBuf::from("/home/hellsent/HRs/RR/ftp-rustified/ROOT");
+    // let mut out = Vec::new();
+
+    if path.is_dir() {
+        if let Ok(mut read_dir) = read_dir(path).await {
+            while let Some(entry) = read_dir.next_entry().await.unwrap() {
+                let data = get_file_info_2(entry).await;
+                println!("@@FFT ==> {:?}",data);
+            }
+        }
+    }
+}
+
+/// only for testing purposes, not realtime function for getting data from the server
+async fn get_file_info_2(entry: DirEntry) -> String {
+    let metadata = entry.metadata().await.unwrap();
+    let content_type = if metadata.is_dir() { 'd' } else { '-' };
+
+    let permissions = metadata.permissions();
+    let mode = permissions.mode();
+
+    let perm_str = format!(
+        "{}{}{}{}{}{}{}{}{}",
+        if mode & 0o400 != 0 { 'r' } else { '-' },
+        if mode & 0o200 != 0 { 'w' } else { '-' },
+        if mode & 0o100 != 0 { 'x' } else { '-' },
+        if mode & 0o040 != 0 { 'r' } else { '-' },
+        if mode & 0o020 != 0 { 'w' } else { '-' },
+        if mode & 0o010 != 0 { 'x' } else { '-' },
+        if mode & 0o004 != 0 { 'r' } else { '-' },
+        if mode & 0o002 != 0 { 'w' } else { '-' },
+        if mode & 0o001 != 0 { 'x' } else { '-' },
+    );
+
+    let size = if metadata.is_dir() { 4096 } else { metadata.len() };
+
+    let modified: DateTime<Local> = metadata.modified().unwrap().into();
+    let date_str = if modified.year() == Local::now().year() {
+        modified.format("%b %d %H:%M")
+    } else {
+        modified.format("%b %d  %Y")
+    };
+
+    let filename = entry.file_name().to_string_lossy().into_owned();
+    // Ok(
+        format!(
+            "{}{} 1 ftp-rustified anonymous {:8} {} {}\r\n",
+            content_type,
+            perm_str,
+            size,
+            date_str,
+            filename,
+            // if metadata.is_dir() { "/" } else { "" }
+        )
+    // )
 }
