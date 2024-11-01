@@ -9,7 +9,7 @@ use crate::error::FtpError;
 use crate::ftp_config::FtpConfig;
 use crate::ftp_response_code::ResponseCode;
 use crate::ftp_response::Response;
-use crate::utils::{add_file_info, get_current_dir, get_filename, invalid_path, prefix_slash, CONFIG_FILE};
+use crate::utils::{add_file_info, get_current_dir, get_file_info, get_filename, invalid_path, prefix_slash, CONFIG_FILE};
 
 pub type Result<T> = result::Result<T, FtpError>;
 
@@ -81,6 +81,7 @@ impl Client {
 
                 Command::MKD(path) => return Ok(self.mkd(path).await?),
                 Command::RMD(path) => return Ok(self.rmd(path).await?),
+                Command::SIZE(path) => return Ok(self.get_size(path).await?),
                 _ => ()
             }
         } else if self.name.is_some() && self.waiting_password {
@@ -203,7 +204,6 @@ impl Client {
     }
 
     /// Handling the List command
-    /// NOTE: todo("Need to implement handling for parameters and not directly pass PathBuf")
     async fn list(mut self, args: Option<String>) -> Result<Self> {
         // , path_buf: Option<PathBuf>
         if let Some(command) = args {
@@ -433,6 +433,26 @@ impl Client {
             }
         }
         self = self.send_response(Response::new(ResponseCode::FileNotFound, "Couldn't Remove Folder\r\n")).await?;
+        Ok(self)
+    }
+
+    async fn get_size(mut self, path: PathBuf) -> Result<Self> {
+        let path = self.cwd.join(path);
+        let (new_client, complete_path) = self.complete_path(path);
+        self = new_client;
+
+        if let Ok(path) = complete_path {
+            let metadata = path.metadata()?;
+            if path.is_file() {
+                let (_timestamp, file_size) = get_file_info(&metadata);
+                self = self.send_response(Response::new(ResponseCode::FileStatus, &format!("{}\r\n", file_size))).await?;
+            } else {
+                self = self.send_response(Response::new(ResponseCode::FileNotFound, "No such file or directory 2X\r\n")).await?;
+            }
+        } else {
+            self = self.send_response(Response::new(ResponseCode::FileNotFound, "No such file or directory 1X\r\n")).await?;
+        }
+
         Ok(self)
     }
 

@@ -24,6 +24,7 @@ pub enum Command {
     RETR(PathBuf),
     RMD(PathBuf),
     STOR(PathBuf),
+    SIZE(PathBuf),
     SYST,
     TYPE(DataTransferType),
     UNKNOWN(String),
@@ -82,6 +83,8 @@ impl Command {
             b"RETR" => Command::RETR(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
             b"RMD" => Command::RMD(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
             b"STOR" => Command::STOR(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
+            // b"SIZE" => Command::SIZE(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
+            b"SIZE" => Command::SIZE(data.and_then(|bytes| Ok(PathBuf::from(from_utf8(bytes)?)))?),
             b"SYST" => Command::SYST,
             b"TYPE" => {
                 let err: Result<Command> = Err("Command not implemented".into());
@@ -126,6 +129,7 @@ impl AsRef<str> for Command {
             Command::STOR(_) => "STOR",
             Command::RMD(_) => "RMD",
             Command::SYST => "SYST",
+            Command::SIZE(_) => "SIZE",
             Command::TYPE(_) => "TYPE",
             Command::USER(_) => "USER",
             Command::UNKNOWN(_) => "UNKN",
