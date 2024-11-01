@@ -9,7 +9,7 @@ use crate::error::FtpError;
 use crate::ftp_config::FtpConfig;
 use crate::ftp_response_code::ResponseCode;
 use crate::ftp_response::Response;
-use crate::utils::{add_file_info, get_current_dir, get_file_info, get_filename, invalid_path, prefix_slash, CONFIG_FILE};
+use crate::utils::{add_file_info, get_current_dir, get_file_info, get_filename, get_permissions, invalid_path, prefix_slash, CONFIG_FILE};
 
 pub type Result<T> = result::Result<T, FtpError>;
 
@@ -353,32 +353,57 @@ impl Client {
                 return Err(error.into());
             }
 
-            let path = self.cwd.join(path);
-            self = self.send_response(Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to Store the file\r\n")).await?;
-            let (new_client, file_data) = self.receive_data().await?;
+            let cwd = self.cwd.clone();
+            let (new_client, complete_dir_path) = self.complete_path(cwd);
             self = new_client;
 
-            // let mut file = File::create(path).await?;
-            // file.write_all(&file_data).await?;
-            match tokio::fs::File::create(path).await {
-                Ok(mut file) => {
+            if let Ok(complete_dir_path) = complete_dir_path {
+                // let file_path = if let Some(file) = get_filename(path.clone().strip_prefix("/")?) {
+                //     Path::new(&file).to_path_buf()
+                // } else {
+                //     return Err(FtpError::Msg("No File Name Provided".to_string()));
+                // };
+                // // let path_complete = complete_dir_path.join(file_path);
 
-                    // todo: write in chunks
-                    // writing all at once
-                    file.write_all(&file_data).await?;
-                },
-                Err(e) => {
-                    if e.kind() == io::ErrorKind::PermissionDenied {
-                        self.send_response(Response::new(ResponseCode::FileNotFound, "Permission Denied. 1X\r\n")).await?;
-                        // return Err(e.into());
-                    } else {
-                        self.send_response(Response::new(ResponseCode::FileNotFound, "Failed to store file.\r\n")).await?;
+                let file_name = if let Some(file) = get_filename(path.clone()) {
+                    file
+                } else {
+                    return Err(FtpError::Msg("No File Name Provided".to_string()));
+                };
+                let path = complete_dir_path.join(file_name);
+
+                // println!("-> SERVER ROOT: {:?}", &self.server_root_dir);
+                println!("-> STOR PATH: {:?}", &path);
+                self = self.send_response(Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to Store the file\r\n")).await?;
+                let (new_client, file_data) = self.receive_data().await?;
+                self = new_client;
+
+                // let mut file = File::create(path).await?;
+                // file.write_all(&file_data).await?;
+                let permissions = get_permissions(&self.cwd.metadata()?);
+                println!("-- ROOT PERMISSIONS: {:?}", &permissions);
+                match tokio::fs::File::create_new(path).await {
+                    Ok(mut file) => {
+
+                        // todo: write in chunks
+                        // writing all at once
+                        file.write_all(&file_data).await?;
+                    },
+                    Err(e) => {
+                        if e.kind() == io::ErrorKind::PermissionDenied {
+                            self.send_response(Response::new(ResponseCode::FileNotFound, "Permission Denied. 1X\r\n")).await?;
+                            // return Err(e.into());
+                        } else {
+                            self.send_response(Response::new(ResponseCode::FileNotFound, "Failed to store file.\r\n")).await?;
+                        }
+                        return Err(FtpError::Io(e));
                     }
-                    return Err(FtpError::Io(e));
                 }
-            }
 
-            println!("\t\tTransfer Done <==");
+                println!("\t\tTransfer Done <==");
+            } else {
+                return Err(FtpError::Msg("No Path Provided".to_string()));
+            };
 
             self.close_data_connection();
 
@@ -475,6 +500,17 @@ impl Client {
         }
 
         (self,dir)
+    }
+
+    fn complete_file_path(self, path:PathBuf) -> (Self, result::Result<PathBuf, io::Error>) {
+        let file_path = self.server_root_dir.join(path);
+        let file = file_path.canonicalize();
+        if let Ok(ref file) = file {
+            if !file.starts_with(&self.server_root_dir) {
+                return (self, Err(io::ErrorKind::PermissionDenied.into()))
+            }
+        }
+        (self, file)
     }
 
     fn strip_prefix(self, dir: PathBuf) -> (Self, result::Result<PathBuf, StripPrefixError>) {

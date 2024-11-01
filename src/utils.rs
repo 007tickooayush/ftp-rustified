@@ -9,7 +9,7 @@ use chrono::{DateTime, Datelike, Local};
 use time::OffsetDateTime;
 use tokio::fs::{metadata, read_dir, DirEntry, File};
 use tokio::io;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use crate::error::FtpError;
 
 pub const CONFIG_FILE: &str = "config.json";
@@ -140,6 +140,9 @@ pub fn get_filename(path: PathBuf) -> Option<OsString> {
 pub async fn create_root_dir(path: &str) -> io::Result<()> {
     if !Path::new(path).exists() {
         tokio::fs::create_dir_all(path).await?;
+        let mut permissions = std::fs::metadata(path)?.permissions();
+        permissions.set_mode(0o755);
+        tokio::fs::set_permissions(path, permissions).await?;
     }
     Ok(())
 }
@@ -235,4 +238,19 @@ async fn get_file_info_2(entry: DirEntry) -> String {
             // if metadata.is_dir() { "/" } else { "" }
         )
     // )
+}
+
+#[tokio::test]
+async fn test_file_handling() {
+    match File::create_new("/home/hellsent/HRs/RR/ftp-rustified/ROOT/test.txt").await {
+        Ok(mut file ) => {
+            let mut data = Vec::new();
+            data.extend_from_slice(b"Hello, World!");
+            file.write_all(&data).await.unwrap();
+        },
+        Err(err) => {
+
+            eprintln!("Error creating file: {}", err);
+        }
+    }
 }
