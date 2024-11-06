@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf, StripPrefixError};
 use std::{io, result};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::os::unix::prelude::PermissionsExt;
-use tokio::fs::{create_dir, create_dir_all, read_dir, remove_dir_all, File};
+use tokio::fs::{create_dir, create_dir_all, read_dir, remove_dir_all, remove_file, File};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 use crate::client_command::{Command, DataTransferType};
@@ -455,18 +455,31 @@ impl Client {
 
         Ok(self)
     }
-    async fn rmd(mut self, directory: PathBuf) -> Result<Self> {
-        let path = self.cwd.join(&directory);
+    async fn rmd(mut self, item_path: PathBuf) -> Result<Self> {
+        let path = self.cwd.join(&item_path);
         let (new_client, complete_path) = self.complete_path(path);
         self = new_client;
 
-        if let Ok(dir) = complete_path {
-            if remove_dir_all(dir).await.is_ok() {
-                self = self.send_response(Response::new(ResponseCode::RequestedFileActionOkay, "Folder Removed successfully\r\n")).await?;
-                return Ok(self);
+        // todo: handle for both dir as well as file
+        if let Ok(item) = complete_path {
+            if item.is_dir() {
+                if remove_dir_all(&item).await.is_ok() {
+                    self = self.send_response(Response::new(ResponseCode::RequestedFileActionOkay, "Folder Removed successfully\r\n")).await?;
+                    return Ok(self);
+                } else {
+                    self = self.send_response(Response::new(ResponseCode::FileNotFound, "Couldn't Remove Folder\r\n")).await?;
+                }
+            }
+
+            if item.is_file() {
+                if remove_file(&item).await.is_ok() {
+                    self = self.send_response(Response::new(ResponseCode::RequestedFileActionOkay, "File Removed successfully\r\n")).await?;
+                    return Ok(self);
+                } else {
+                    self = self.send_response(Response::new(ResponseCode::FileNotFound, "Couldn't Remove File\r\n")).await?;
+                }
             }
         }
-        self = self.send_response(Response::new(ResponseCode::FileNotFound, "Couldn't Remove Folder\r\n")).await?;
         Ok(self)
     }
 
