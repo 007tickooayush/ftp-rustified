@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf, StripPrefixError};
 use std::{io, result};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use tokio::fs::{create_dir, read_dir, remove_dir_all, File};
+use std::os::unix::prelude::PermissionsExt;
+use tokio::fs::{create_dir, create_dir_all, read_dir, remove_dir_all, File};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 use crate::client_command::{Command, DataTransferType};
@@ -354,35 +355,36 @@ impl Client {
             }
 
             let cwd = self.cwd.clone();
-            let (new_client, complete_dir_path) = self.complete_path(cwd);
+            let (new_client, complete_dir_path) = self.complete_path(cwd.clone());
             self = new_client;
 
             if let Ok(complete_dir_path) = complete_dir_path {
-                // let file_path = if let Some(file) = get_filename(path.clone().strip_prefix("/")?) {
-                //     Path::new(&file).to_path_buf()
+
+                // let file_name = if let Ok(file) = path.strip_prefix("/") {
+                //     file
                 // } else {
                 //     return Err(FtpError::Msg("No File Name Provided".to_string()));
                 // };
-                // // let path_complete = complete_dir_path.join(file_path);
-
-                let file_name = if let Some(file) = get_filename(path.clone()) {
+                let file_name = if let Some(file) =  get_filename(path.clone()) {
                     file
                 } else {
                     return Err(FtpError::Msg("No File Name Provided".to_string()));
                 };
-                let path = complete_dir_path.join(file_name);
+
+                let mut file_path = complete_dir_path.clone();
+                file_path.push(file_name);
 
                 // println!("-> SERVER ROOT: {:?}", &self.server_root_dir);
-                println!("-> STOR PATH: {:?}", &path);
+                println!("-> STOR PATH: {:?}", &file_path);
                 self = self.send_response(Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to Store the file\r\n")).await?;
                 let (new_client, file_data) = self.receive_data().await?;
                 self = new_client;
 
                 // let mut file = File::create(path).await?;
                 // file.write_all(&file_data).await?;
-                let permissions = get_permissions(&self.cwd.metadata()?);
+                let permissions = get_permissions(&complete_dir_path.metadata()?);
                 println!("-- ROOT PERMISSIONS: {:?}", &permissions);
-                match tokio::fs::File::create_new(path).await {
+                match tokio::fs::File::create_new(&file_path).await {
                     Ok(mut file) => {
 
                         // todo: write in chunks
@@ -429,15 +431,22 @@ impl Client {
                 if dir.is_dir() {
                     let filename = get_filename(path);
 
-                    if let Some(filename) = filename {
-                        dir.push(filename);
+                    if let Some(folder) = filename {
+                        dir.push(folder);
+                        if create_dir_all(&dir).await.is_ok() {
+                            let mut permissions = tokio::fs::metadata(&dir).await?.permissions();
+                            permissions.set_mode(0o755);
 
-                        if create_dir(dir).await.is_ok() {
                             self = self.send_response(Response::new(ResponseCode::PATHNAMECreated, "Directory created\r\n")).await?;
                             return Ok(self);
+                        } else {
+                            self = self.send_response(Response::new(ResponseCode::FileNotFound, "Unable to create Folder 1X\r\n")).await?;
                         }
-
+                    } else {
+                        self = self.send_response(Response::new(ResponseCode::FileNotFound, "No such file or directory 2X\r\n")).await?;
                     }
+                } else {
+                    self = self.send_response(Response::new(ResponseCode::FileNotFound, "No such file or directory 3X\r\n")).await?;
                 }
             }
         }
@@ -554,7 +563,6 @@ impl Client {
                 }
                 file_data.extend_from_slice(&buffer[..bytes_read]);
             }
-
 
             Ok((self, file_data))
         } else {

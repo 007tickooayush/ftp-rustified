@@ -82,6 +82,7 @@ impl Command {
             b"QUIT" => Command::QUIT,
             b"RETR" => Command::RETR(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
             b"RMD" => Command::RMD(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
+            b"DELE" => Command::RMD(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
             b"STOR" => Command::STOR(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
             // b"SIZE" => Command::SIZE(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
             b"SIZE" => Command::SIZE(data.and_then(|bytes| Ok(PathBuf::from(from_utf8(bytes)?)))?),

@@ -1,6 +1,0 @@
-150 Opening ASCII mode data connection for file list.
--rw-rw-r-- 1 owner group 25 Sep 11 22:42 text2.txt
-
--rw-rw-r-- 1 owner group 36 Sep 11 20:28 demo.txt
-
-226 Transfer complete.
