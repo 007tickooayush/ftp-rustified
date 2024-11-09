@@ -569,29 +569,29 @@ impl Client {
             let mut buffer = [0; 8192];
 
             // need to check reader
-            // loop {
-            //     let bytes_read = reader.read(&mut buffer).await?;
-            //     if bytes_read == 0 {
-            //         break;
-            //     }
-            //     file_data.extend_from_slice(&buffer[..bytes_read]);
-            // }
-
-
             loop {
                 let bytes_read = reader.read(&mut buffer).await?;
                 if bytes_read == 0 {
                     break;
                 }
-                // offload the data writing to a separate thread
-                // track the time and memory utilized here
-                let chunk = buffer[..bytes_read].to_vec();
-                file_data = tokio::task::spawn(async move {
-                    let mut data = file_data;
-                    data.extend_from_slice(&chunk);
-                    data
-                }).await.map_err(|e| FtpError::Msg(e.to_string()))?;
+                file_data.extend_from_slice(&buffer[..bytes_read]);
             }
+
+
+            // loop {
+            //     let bytes_read = reader.read(&mut buffer).await?;
+            //     if bytes_read == 0 {
+            //         break;
+            //     }
+            //     // offload the data writing to a separate thread
+            //     // track the time and memory utilized here
+            //     let chunk = buffer[..bytes_read].to_vec();
+            //     file_data = tokio::task::spawn(async move {
+            //         let mut data = file_data;
+            //         data.extend_from_slice(&chunk);
+            //         data
+            //     }).await.map_err(|e| FtpError::Msg(e.to_string()))?;
+            // }
 
             Ok((self, file_data))
         } else {
