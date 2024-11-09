@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf, StripPrefixError};
 use std::{io, result};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use tokio::fs::{create_dir, read_dir, remove_dir_all, File};
+use std::os::unix::prelude::PermissionsExt;
+use tokio::fs::{create_dir, create_dir_all, read_dir, remove_dir_all, remove_file, File};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 use crate::client_command::{Command, DataTransferType};
@@ -9,7 +10,7 @@ use crate::error::FtpError;
 use crate::ftp_config::FtpConfig;
 use crate::ftp_response_code::ResponseCode;
 use crate::ftp_response::Response;
-use crate::utils::{add_file_info, get_filename, invalid_path, prefix_slash, CONFIG_FILE};
+use crate::utils::{add_file_info, get_current_dir, get_file_info, get_filename, get_permissions, invalid_path, prefix_slash, CONFIG_FILE};
 
 pub type Result<T> = result::Result<T, FtpError>;
 
@@ -53,7 +54,7 @@ impl Client {
         if self.is_logged_in() {
             match cmd {
                 Command::CWD(directory) => return Ok(self.handle_cwd(directory).await?),
-                Command::LIST(path) => return Ok(self.list(path).await?),
+                Command::LIST(args) => return Ok(self.list(args).await?),
                 Command::PASV => return Ok(self.pasv().await?),
                 Command::PORT(port) => {
                     self.data_port = Some(port);
@@ -81,6 +82,7 @@ impl Client {
 
                 Command::MKD(path) => return Ok(self.mkd(path).await?),
                 Command::RMD(path) => return Ok(self.rmd(path).await?),
+                Command::SIZE(path) => return Ok(self.get_size(path).await?),
                 _ => ()
             }
         } else if self.name.is_some() && self.waiting_password {
@@ -201,41 +203,56 @@ impl Client {
         }
 
     }
-    async fn list(mut self, path_buf: Option<PathBuf>) -> Result<Self> {
-        if self.data_writer.is_some() {
-            let path = self.cwd.join(path_buf.unwrap_or_default());
-            let directory = PathBuf::from(&path);
-            let (new_client, complete_path) = self.complete_path(directory);
-            self = new_client;
-            if let Ok(path) = complete_path {
-                self = self.send_response(
-                    Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to list directories\r\n")
-                ).await?;
 
-                let mut out = vec![];
+    /// Handling the List command
+    async fn list(mut self, args: Option<String>) -> Result<Self> {
+        // , path_buf: Option<PathBuf>
+        if let Some(command) = args {
+            if command.starts_with('-') {
+                if String::from("-al").eq(&command) {
+                    // IMPLEMENTATION FOR -al
+                    if self.data_writer.is_some() {
+                        println!("<><><>DATA is some");
+                        // let path = self.cwd.join(get_current_dir());
+                        let path = self.cwd.clone();
+                        let directory = PathBuf::from(&path);
+                        let (new_client, complete_path) = self.complete_path(directory);
+                        self = new_client;
+                        if let Ok(path) = complete_path {
+                            self = self.send_response(
+                                Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to list directories\r\n")
+                            ).await?;
 
-                if path.is_dir() {
-                    if let Ok(mut dir_reader) = read_dir(path).await{
-                        while let Some(entry) = dir_reader.next_entry().await? {
-                            if self.is_admin || entry.path() != self.server_root_dir.join(CONFIG_FILE) {
-                                add_file_info(entry.path(), &mut out).await;
+                            let mut out = vec![];
+
+                            if path.is_dir() {
+                                if let Ok(mut dir_reader) = read_dir(path).await{
+                                    while let Some(entry) = dir_reader.next_entry().await? {
+                                        if self.is_admin || entry.path() != self.server_root_dir.join(CONFIG_FILE) {
+                                            add_file_info(entry.path(), &mut out).await;
+                                        }
+                                    }
+                                    // self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Directory send OK\r\n")).await?;
+                                } else {
+                                    self = self.send_response(Response::new(ResponseCode::InvalidParameterOrArgument, "No such file or directory\r\n")).await?;
+                                    return Ok(self);
+                                }
+                            } else if self.is_admin || path != self.server_root_dir.join(CONFIG_FILE) {
+                                add_file_info(path, &mut out).await;
                             }
+                            self = self.send_data(out).await?;
+                            println!("-> DONE TRAVERSING DIRECTORIES");
+                        } else {
+                            self = self.send_response(Response::new(ResponseCode::InvalidParameterOrArgument, "No such file or directory1\r\n")).await?;
                         }
-                        // self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Directory send OK\r\n")).await?;
                     } else {
-                        self = self.send_response(Response::new(ResponseCode::InvalidParameterOrArgument, "No such file or directory\r\n")).await?;
-                        return Ok(self);
+                        self = self.send_response(Response::new(ResponseCode::ConnectionClosed, "No opened data connection2\r\n")).await?;
                     }
-                } else if self.is_admin || path != self.server_root_dir.join(CONFIG_FILE) {
-                    add_file_info(path, &mut out).await;
+
+                } else {
+                    self = self.send_response(Response::new(ResponseCode::ConnectionClosed, "No opened data connection3\r\n")).await?;
                 }
-                self = self.send_data(out).await?;
-                println!("-> DONE TRAVERSING DIRECTORIES");
-            } else {
-                self = self.send_response(Response::new(ResponseCode::InvalidParameterOrArgument, "No such file or directory\r\n")).await?;
             }
-        } else {
-            self = self.send_response(Response::new(ResponseCode::ConnectionClosed, "No opened data connection\r\n")).await?;
         }
 
         if self.data_writer.is_some() {
@@ -329,21 +346,66 @@ impl Client {
     }
 
     async fn stor(mut self, path: PathBuf) -> Result<Self> {
+        println!("-> STOR: {:?}", &path);
+        // handle permissions  for the file creation in the server
         if self.data_reader.is_some() {
             if invalid_path(&path)  || (!self.is_admin && path == self.server_root_dir.join(CONFIG_FILE)){
                 let error: io::Error = io::ErrorKind::PermissionDenied.into();
                 return Err(error.into());
             }
 
-            let path = self.cwd.join(path);
-            self = self.send_response(Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to Store the file\r\n")).await?;
-            let (new_client, file_data) = self.receive_data().await?;
+            let cwd = self.cwd.clone();
+            let (new_client, complete_dir_path) = self.complete_path(cwd.clone());
             self = new_client;
 
-            let mut file = File::create(path).await?;
-            file.write_all(&file_data).await?;
+            if let Ok(complete_dir_path) = complete_dir_path {
 
-            println!("\t\tTransfer Done <==");
+                // let file_name = if let Ok(file) = path.strip_prefix("/") {
+                //     file
+                // } else {
+                //     return Err(FtpError::Msg("No File Name Provided".to_string()));
+                // };
+                let file_name = if let Some(file) =  get_filename(path.clone()) {
+                    file
+                } else {
+                    return Err(FtpError::Msg("No File Name Provided".to_string()));
+                };
+
+                let mut file_path = complete_dir_path.clone();
+                file_path.push(file_name);
+
+                // println!("-> SERVER ROOT: {:?}", &self.server_root_dir);
+                println!("-> STOR PATH: {:?}", &file_path);
+                self = self.send_response(Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to Store the file\r\n")).await?;
+                let (new_client, file_data) = self.receive_data().await?;
+                self = new_client;
+
+                // let mut file = File::create(path).await?;
+                // file.write_all(&file_data).await?;
+                let permissions = get_permissions(&complete_dir_path.metadata()?);
+                println!("-- ROOT PERMISSIONS: {:?}", &permissions);
+                match tokio::fs::File::create_new(&file_path).await {
+                    Ok(mut file) => {
+
+                        // todo: write in chunks
+                        // writing all at once
+                        file.write_all(&file_data).await?;
+                    },
+                    Err(e) => {
+                        if e.kind() == io::ErrorKind::PermissionDenied {
+                            self.send_response(Response::new(ResponseCode::FileNotFound, "Permission Denied. 1X\r\n")).await?;
+                            // return Err(e.into());
+                        } else {
+                            self.send_response(Response::new(ResponseCode::FileNotFound, "Failed to store file.\r\n")).await?;
+                        }
+                        return Err(FtpError::Io(e));
+                    }
+                }
+
+                println!("\t\tTransfer Done <==");
+            } else {
+                return Err(FtpError::Msg("No Path Provided".to_string()));
+            };
 
             self.close_data_connection();
 
@@ -369,15 +431,22 @@ impl Client {
                 if dir.is_dir() {
                     let filename = get_filename(path);
 
-                    if let Some(filename) = filename {
-                        dir.push(filename);
+                    if let Some(folder) = filename {
+                        dir.push(folder);
+                        if create_dir_all(&dir).await.is_ok() {
+                            let mut permissions = tokio::fs::metadata(&dir).await?.permissions();
+                            permissions.set_mode(0o755);
 
-                        if create_dir(dir).await.is_ok() {
                             self = self.send_response(Response::new(ResponseCode::PATHNAMECreated, "Directory created\r\n")).await?;
                             return Ok(self);
+                        } else {
+                            self = self.send_response(Response::new(ResponseCode::FileNotFound, "Unable to create Folder 1X\r\n")).await?;
                         }
-
+                    } else {
+                        self = self.send_response(Response::new(ResponseCode::FileNotFound, "No such file or directory 2X\r\n")).await?;
                     }
+                } else {
+                    self = self.send_response(Response::new(ResponseCode::FileNotFound, "No such file or directory 3X\r\n")).await?;
                 }
             }
         }
@@ -386,18 +455,51 @@ impl Client {
 
         Ok(self)
     }
-    async fn rmd(mut self, directory: PathBuf) -> Result<Self> {
-        let path = self.cwd.join(&directory);
+    async fn rmd(mut self, item_path: PathBuf) -> Result<Self> {
+        let path = self.cwd.join(&item_path);
         let (new_client, complete_path) = self.complete_path(path);
         self = new_client;
 
-        if let Ok(dir) = complete_path {
-            if remove_dir_all(dir).await.is_ok() {
-                self = self.send_response(Response::new(ResponseCode::RequestedFileActionOkay, "Folder Removed successfully\r\n")).await?;
-                return Ok(self);
+        // todo: handle for both dir as well as file
+        if let Ok(item) = complete_path {
+            if item.is_dir() {
+                if remove_dir_all(&item).await.is_ok() {
+                    self = self.send_response(Response::new(ResponseCode::RequestedFileActionOkay, "Folder Removed successfully\r\n")).await?;
+                    return Ok(self);
+                } else {
+                    self = self.send_response(Response::new(ResponseCode::FileNotFound, "Couldn't Remove Folder\r\n")).await?;
+                }
+            }
+
+            if item.is_file() {
+                if remove_file(&item).await.is_ok() {
+                    self = self.send_response(Response::new(ResponseCode::RequestedFileActionOkay, "File Removed successfully\r\n")).await?;
+                    return Ok(self);
+                } else {
+                    self = self.send_response(Response::new(ResponseCode::FileNotFound, "Couldn't Remove File\r\n")).await?;
+                }
             }
         }
-        self = self.send_response(Response::new(ResponseCode::FileNotFound, "Couldn't Remove Folder\r\n")).await?;
+        Ok(self)
+    }
+
+    async fn get_size(mut self, path: PathBuf) -> Result<Self> {
+        let path = self.cwd.join(path);
+        let (new_client, complete_path) = self.complete_path(path);
+        self = new_client;
+
+        if let Ok(path) = complete_path {
+            let metadata = path.metadata()?;
+            if path.is_file() {
+                let (_timestamp, file_size) = get_file_info(&metadata);
+                self = self.send_response(Response::new(ResponseCode::FileStatus, &format!("{}\r\n", file_size))).await?;
+            } else {
+                self = self.send_response(Response::new(ResponseCode::FileNotFound, "No such file or directory 2X\r\n")).await?;
+            }
+        } else {
+            self = self.send_response(Response::new(ResponseCode::FileNotFound, "No such file or directory 1X\r\n")).await?;
+        }
+
         Ok(self)
     }
 
@@ -420,6 +522,17 @@ impl Client {
         }
 
         (self,dir)
+    }
+
+    fn complete_file_path(self, path:PathBuf) -> (Self, result::Result<PathBuf, io::Error>) {
+        let file_path = self.server_root_dir.join(path);
+        let file = file_path.canonicalize();
+        if let Ok(ref file) = file {
+            if !file.starts_with(&self.server_root_dir) {
+                return (self, Err(io::ErrorKind::PermissionDenied.into()))
+            }
+        }
+        (self, file)
     }
 
     fn strip_prefix(self, dir: PathBuf) -> (Self, result::Result<PathBuf, StripPrefixError>) {
@@ -454,6 +567,8 @@ impl Client {
 
             // read the file data in chunks (8KB)
             let mut buffer = [0; 8192];
+
+            // need to check reader
             loop {
                 let bytes_read = reader.read(&mut buffer).await?;
                 if bytes_read == 0 {
@@ -462,6 +577,21 @@ impl Client {
                 file_data.extend_from_slice(&buffer[..bytes_read]);
             }
 
+
+            // loop {
+            //     let bytes_read = reader.read(&mut buffer).await?;
+            //     if bytes_read == 0 {
+            //         break;
+            //     }
+            //     // offload the data writing to a separate thread
+            //     // track the time and memory utilized here
+            //     let chunk = buffer[..bytes_read].to_vec();
+            //     file_data = tokio::task::spawn(async move {
+            //         let mut data = file_data;
+            //         data.extend_from_slice(&chunk);
+            //         data
+            //     }).await.map_err(|e| FtpError::Msg(e.to_string()))?;
+            // }
 
             Ok((self, file_data))
         } else {
