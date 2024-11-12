@@ -5,7 +5,6 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 use crate::client::Client;
 use crate::client_command::Command;
-use crate::client_handler::ClientHandler;
 use crate::ftp_config::FtpConfig;
 use crate::ftp_response::Response;
 use crate::ftp_response_code::ResponseCode;
@@ -70,6 +69,7 @@ impl Server {
                         // let command = line.unwrap();
                         if let Some(command) = line {
                             println!("--------inside while Reading Command");
+                            println!("|||||| RAW Command: {} ||||||||", &command);
                             let command = command.trim().to_string();
                             let cmd = Command::new(command.as_bytes().to_vec()).unwrap();
                             client = client.handle_command(cmd).await.unwrap();
