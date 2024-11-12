@@ -359,12 +359,6 @@ impl Client {
             self = new_client;
 
             if let Ok(complete_dir_path) = complete_dir_path {
-
-                // let file_name = if let Ok(file) = path.strip_prefix("/") {
-                //     file
-                // } else {
-                //     return Err(FtpError::Msg("No File Name Provided".to_string()));
-                // };
                 let file_name = if let Some(file) =  get_filename(path.clone()) {
                     file
                 } else {
@@ -379,29 +373,8 @@ impl Client {
                 self = self.send_response(Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to Store the file\r\n")).await?;
                 let (new_client, file_metadata) = self.receive_data(file_path).await?;
                 self = new_client;
-
-                // let mut file = File::create(path).await?;
-                // file.write_all(&file_data).await?;
                 let permissions = get_permissions(&complete_dir_path.metadata()?);
                 println!("-- ROOT PERMISSIONS: {:?}", &permissions);
-                // match tokio::fs::File::create_new(&file_path).await {
-                //     Ok(mut file) => {
-                //
-                //         // todo: write in chunks
-                //         // writing all at once
-                //         file.write_all(&file_data).await?;
-                //     },
-                //     Err(e) => {
-                //         if e.kind() == io::ErrorKind::PermissionDenied {
-                //             self.send_response(Response::new(ResponseCode::FileNotFound, "Permission Denied. 1X\r\n")).await?;
-                //             // return Err(e.into());
-                //         } else {
-                //             self.send_response(Response::new(ResponseCode::FileNotFound, "Failed to store file.\r\n")).await?;
-                //         }
-                //         return Err(FtpError::Io(e));
-                //     }
-                // }
-
                 println!("\t\tTransfer Done <==");
             } else {
                 return Err(FtpError::Msg("No Path Provided".to_string()));
@@ -460,7 +433,6 @@ impl Client {
         let (new_client, complete_path) = self.complete_path(path);
         self = new_client;
 
-        // todo: handle for both dir as well as file
         if let Ok(item) = complete_path {
             if item.is_dir() {
                 if remove_dir_all(&item).await.is_ok() {
@@ -560,11 +532,7 @@ impl Client {
         if self.data_reader.is_some() {
             // let mut file_data = vec![];
             let mut dest_file = File::create(destination).await?;
-
             let mut reader = self.data_reader.take().ok_or_else(|| FtpError::Msg("No data reader\r\n".to_string()))?;
-
-            // Read the entire file data in one go
-            // reader.read_to_end(&mut file_data).await?;
 
             // read the file data in chunks (8KB)
             let mut buffer = [0; 8192];
@@ -575,7 +543,6 @@ impl Client {
                 if bytes_read == 0 {
                     break;
                 }
-                // file_data.extend_from_slice(&buffer[..bytes_read]);
                 dest_file.write(&buffer[..bytes_read]).await?;
             }
 
