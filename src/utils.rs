@@ -155,6 +155,15 @@ pub fn get_current_dir() -> PathBuf {
     })
 }
 
+pub fn get_first_word_and_rest(input: &str) -> Option<(&str, &str)> {
+    for (i,c) in input.chars().enumerate() {
+        if c == ' ' {
+            return Some((&input[..i], &input[i+1..]));
+        }
+    }
+    Some((input, ""))
+}
+
 #[tokio::test]
 async fn test_add_file_info() {
     let mut out  = Vec::new();

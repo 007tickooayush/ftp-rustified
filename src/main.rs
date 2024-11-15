@@ -10,7 +10,6 @@ mod ftp_user;
 mod utils;
 mod ftp_response;
 mod ftp_response_code;
-mod codec;
 mod error;
 mod client;
 

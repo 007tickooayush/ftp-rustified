@@ -71,7 +71,10 @@ impl Client {
                     }
                 },
                 Command::RETR(file) => return Ok(self.retr(file).await?),
-                Command::STOR(file) => return Ok(self.stor(file).await?),
+                Command::STOR(file) => {
+                    println!("path: {:?}", &file);
+                    return Ok(self.stor(file).await?)
+                },
                 Command::CDUP => {
                     if let Some(path) = self.cwd.parent().map(Path::to_path_buf) {
                         self.cwd = path;
@@ -354,35 +357,40 @@ impl Client {
                 return Err(error.into());
             }
 
-            let cwd = self.cwd.clone();
-            let (new_client, complete_dir_path) = self.complete_path(cwd.clone());
-            self = new_client;
+            if path.is_file() {
+                let cwd = self.cwd.clone();
+                let (new_client, complete_dir_path) = self.complete_path(cwd.clone());
+                self = new_client;
 
-            if let Ok(complete_dir_path) = complete_dir_path {
-                let file_name = if let Some(file) =  get_filename(path.clone()) {
-                    file
+                if let Ok(complete_dir_path) = complete_dir_path {
+                    let file_name = if let Some(file) =  get_filename(path.clone()) {
+                        file
+                    } else {
+                        return Err(FtpError::Msg("No File Name Provided".to_string()));
+                    };
+
+                    let mut file_path = complete_dir_path.clone();
+                    file_path.push(file_name);
+
+                    // println!("-> SERVER ROOT: {:?}", &self.server_root_dir);
+                    println!("-> STOR PATH: {:?}", &file_path);
+                    self = self.send_response(Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to Store the file\r\n")).await?;
+                    let (new_client, file_metadata) = self.receive_data(file_path).await?;
+                    self = new_client;
+                    let permissions = get_permissions(&complete_dir_path.metadata()?);
+                    println!("-- ROOT PERMISSIONS: {:?}", &permissions);
+                    println!("\t\tTransfer Done <==");
                 } else {
-                    return Err(FtpError::Msg("No File Name Provided".to_string()));
+                    return Err(FtpError::Msg("No Path Provided".to_string()));
                 };
 
-                let mut file_path = complete_dir_path.clone();
-                file_path.push(file_name);
+                self.close_data_connection();
 
-                // println!("-> SERVER ROOT: {:?}", &self.server_root_dir);
-                println!("-> STOR PATH: {:?}", &file_path);
-                self = self.send_response(Response::new(ResponseCode::DataConnectionAlreadyOpen, "Starting to Store the file\r\n")).await?;
-                let (new_client, file_metadata) = self.receive_data(file_path).await?;
-                self = new_client;
-                let permissions = get_permissions(&complete_dir_path.metadata()?);
-                println!("-- ROOT PERMISSIONS: {:?}", &permissions);
-                println!("\t\tTransfer Done <==");
+                self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Data connection closed, Transfer Done\r\n")).await?;
             } else {
-                return Err(FtpError::Msg("No Path Provided".to_string()));
-            };
+                self = self.send_response(Response::new(ResponseCode::FileNotFound, "Trying to insert a directory\r\n")).await?;
+            }
 
-            self.close_data_connection();
-
-            self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Data connection closed, Transfer Done\r\n")).await?;
         } else {
             self = self.send_response(Response::new(ResponseCode::ConnectionClosed, "No opened data connection\r\n")).await?;
         }
