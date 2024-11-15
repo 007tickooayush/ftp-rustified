@@ -1,9 +1,10 @@
 use std::path::{Path, PathBuf};
 use std::result;
 use std::str::from_utf8;
+use serde::__private::from_utf8_lossy;
 use serde_json::from_str;
 use crate::error::FtpError;
-use crate::utils::bytes_to_uppercase;
+use crate::utils::{bytes_to_uppercase, get_first_word_and_rest};
 
 pub type Result<T> = result::Result<T, FtpError>;
 
@@ -32,27 +33,35 @@ pub enum Command {
 }
 
 impl Command {
-    pub fn new(input: Vec<u8>) -> Result<Self> {
-        let mut iter = input.split(|&byte| byte == b' ');
-        let mut command = iter.next().ok_or_else(|| FtpError::Msg("Empty command\r\n".to_string()))?.to_vec();
-        bytes_to_uppercase(&mut command);
+    pub fn new(input: &str) -> Result<Self> {
+        // let mut iter = input.split(|&byte| byte == b' ');
+        // let mut command = iter.next().ok_or_else(|| FtpError::Msg("Empty command\r\n".to_string()))?.to_vec();
+        // bytes_to_uppercase(&mut command);
+        // let data = iter.next().ok_or_else(|| FtpError::Msg("No Command Parameter\r\n".to_string()));
 
-        let data = iter.next().ok_or_else(|| FtpError::Msg("No Command Parameter\r\n".to_string()));
+        // NEW METHOD to get Command and rest of the contents
+        let (command,data) = get_first_word_and_rest(input).ok_or(FtpError::Msg("Empty command\r\n".to_string()))?;
 
-        let command = match command.as_slice() {
+        println!("||X||Command: {:?}", command);
+        println!("||X||Data: {:?}", data);
+
+
+        let command = match command.as_bytes() {
             b"AUTH" => Command::AUTH,
-            b"CWD" => Command::CWD(data.and_then(|bytes|  Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
+            // b"CWD" => Command::CWD(data.and_then(|bytes|  Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
+            b"CWD" => Command::CWD(Path::new(data).to_path_buf()),
             b"CDUP" => Command::CDUP,
-            b"LIST" => Command::LIST(data.and_then(|bytes| Ok(from_utf8(bytes)?.to_string())).ok()),
+            // b"LIST" => Command::LIST(data.and_then(|bytes| Ok(from_utf8(bytes)?.to_string())).ok()),
+            b"LIST" => Command::LIST(Some(data.to_string())),
             b"PASV" => Command::PASV,
-            b"MKD" => Command::MKD(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
+            // b"MKD" => Command::MKD(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
+            b"MKD" => Command::MKD(Path::new(data).to_path_buf()),
             b"PORT" => {
-                let addr = data?.split(|&byte| byte == b',')
-                    .filter_map(
-                        |bytes| {
-                            from_utf8(bytes).ok().and_then(|string| from_str(string).ok())
-                        }
-                    ).collect::<Vec<u8>>();
+                let addr: Vec<u8> = data.split(',')
+                    .filter_map(|s| from_utf8(s.as_bytes()).ok())
+                    .flat_map(|s| s.bytes())
+                    .collect();
+
                 if addr.len() != 6 {
                     return Err("Invalid address/port".into())
                 }
@@ -68,31 +77,33 @@ impl Command {
             },
             b"PWD" => Command::PWD,
             b"QUIT" => Command::QUIT,
-            b"RETR" => Command::RETR(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
-            b"RMD" => Command::RMD(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
-            b"DELE" => Command::RMD(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
-            b"STOR" => Command::STOR(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
-            // b"SIZE" => Command::SIZE(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
-            b"SIZE" => Command::SIZE(data.and_then(|bytes| Ok(PathBuf::from(from_utf8(bytes)?)))?),
+            // b"RETR" => Command::RETR(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
+            b"RETR" => Command::RETR(Path::new(data).to_path_buf()),
+            // b"RMD" => Command::RMD(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
+            // b"DELE" => Command::RMD(data.and_then(|bytes| Ok(Path::new(from_utf8(bytes)?).to_path_buf()))?),
+            b"RMD" => Command::RMD(Path::new(data).to_path_buf()),
+            b"DELE" => Command::RMD(Path::new(data).to_path_buf()),
+            b"STOR" => Command::STOR(Path::new(data).to_path_buf()),
+            // b"SIZE" => Command::SIZE(data.and_then(|bytes| Ok(PathBuf::from(from_utf8(bytes)?)))?),
+            b"SIZE" => Command::SIZE(Path::new(data).to_path_buf()),
             b"SYST" => Command::SYST,
             b"TYPE" => {
                 let err: Result<Command> = Err("Command not implemented".into());
-
-                let data = data?;
-
                 if data.is_empty() {
                     return err;
                 }
 
-                match DataTransferType::from(data[0]) {
+                match DataTransferType::from(data.as_bytes()[0]) {
                     DataTransferType::UNKNOWN => return err,
                     typ => {
                         Command::TYPE(typ)
                     }
                 }
             },
-            b"USER" => Command::USER(data.and_then(|bytes| String::from_utf8(bytes.to_vec()).map_err(Into::into))?),
-            b"PASS" => Command::PASS(data.and_then(|bytes| String::from_utf8(bytes.to_vec()).map_err(Into::into))?),
+            // b"USER" => Command::USER(data.and_then(|bytes| String::from_utf8(bytes.to_vec()).map_err(Into::into))?),
+            b"USER" => Command::USER(data.to_string()),
+            // b"PASS" => Command::PASS(data.and_then(|bytes| String::from_utf8(bytes.to_vec()).map_err(Into::into))?),
+            b"PASS" => Command::PASS(data.to_string()),
             b"NOOP" => Command::NOOP,
             cmd => Command::UNKNOWN(from_utf8(cmd).unwrap_or("").to_owned())
         };
