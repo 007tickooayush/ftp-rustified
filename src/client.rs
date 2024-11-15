@@ -72,7 +72,7 @@ impl Client {
                 },
                 Command::RETR(file) => return Ok(self.retr(file).await?),
                 Command::STOR(file) => {
-                    println!("path: {:?}", &file);
+                    println!("XXX STOR path: {:?}", &file);
                     return Ok(self.stor(file).await?)
                 },
                 Command::CDUP => {
@@ -357,20 +357,20 @@ impl Client {
                 return Err(error.into());
             }
 
-            if path.is_file() {
+            // if path.is_file() {
                 let cwd = self.cwd.clone();
                 let (new_client, complete_dir_path) = self.complete_path(cwd.clone());
                 self = new_client;
 
                 if let Ok(complete_dir_path) = complete_dir_path {
-                    let file_name = if let Some(file) =  get_filename(path.clone()) {
-                        file
-                    } else {
-                        return Err(FtpError::Msg("No File Name Provided".to_string()));
-                    };
 
-                    let mut file_path = complete_dir_path.clone();
-                    file_path.push(file_name);
+                    let append_path = if let Ok(path) = path.strip_prefix("/") {
+                        path
+                    } else {
+                        return Err(FtpError::Msg("Invalid Path Provided".to_string()));
+                    };
+                    let file_path = complete_dir_path.join(append_path);
+                    // file_path.push(path.to_str());
 
                     // println!("-> SERVER ROOT: {:?}", &self.server_root_dir);
                     println!("-> STOR PATH: {:?}", &file_path);
@@ -387,9 +387,9 @@ impl Client {
                 self.close_data_connection();
 
                 self = self.send_response(Response::new(ResponseCode::ClosingDataConnection, "Data connection closed, Transfer Done\r\n")).await?;
-            } else {
-                self = self.send_response(Response::new(ResponseCode::FileNotFound, "Trying to insert a directory\r\n")).await?;
-            }
+            // } else {
+            //     self = self.send_response(Response::new(ResponseCode::FileNotFound, "Trying to insert a directory\r\n")).await?;
+            // }
 
         } else {
             self = self.send_response(Response::new(ResponseCode::ConnectionClosed, "No opened data connection\r\n")).await?;
