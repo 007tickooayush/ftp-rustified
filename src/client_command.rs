@@ -40,7 +40,14 @@ impl Command {
         // let data = iter.next().ok_or_else(|| FtpError::Msg("No Command Parameter\r\n".to_string()));
 
         // NEW METHOD to get Command and rest of the contents
-        let (command,data) = get_first_word_and_rest(input).ok_or(FtpError::Msg("Empty command\r\n".to_string()))?;
+        let (command,data) = if let (Some(command), Some(data)) = get_first_word_and_rest(input) {
+            (command,data)
+        } else if let Some(command) = get_first_word_and_rest(input).0 {
+            (command,"")
+        } else {
+            FtpError::Msg("Empty command\r\n".to_string());
+            return Err("Empty command".into());
+        };
 
         println!("||X||Command: {:?}", command);
         println!("||X||Data: {:?}", data);

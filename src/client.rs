@@ -208,11 +208,11 @@ impl Client {
     }
 
     /// Handling the List command
-    async fn list(mut self, args: Option<String>) -> Result<Self> {
+    async fn list(mut self, mut args: Option<String>) -> Result<Self> {
         // , path_buf: Option<PathBuf>
-        if let Some(command) = args {
-            if command.starts_with('-') {
-                if String::from("-al").eq(&command) {
+        if let command = args.take().unwrap() {
+            if command.starts_with('-') || command.is_empty() {
+                if String::from("-al").eq(&command) || command.is_empty() {
                     // IMPLEMENTATION FOR -al
                     if self.data_writer.is_some() {
                         println!("<><><>DATA is some");
