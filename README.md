@@ -1,5 +1,7 @@
 # FTP Server Project
 
+### NOTE: *The project currently supports only gFTP FTP client and has only a few FTP commands and is a work in progress. The TLS and SSL support is not implemented yet.*
+
 ## Overview
 
 This project is an FTP server implemented in Rust. It supports various FTP commands and provides functionalities for file transfer, directory management, and user authentication. The server is designed to handle multiple clients concurrently using asynchronous programming with `tokio`.
